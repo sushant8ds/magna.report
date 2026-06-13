@@ -1,89 +1,185 @@
-\chapter{TESTING}
+\chapter{IMPLEMENTATION}
 
 \justify
 
-This chapter describes the testing strategy adopted for the HPDC Defect Detection System. Testing is structured at two levels: acceptance testing (validating end-to-end system performance against defined success criteria) and unit testing (validating individual pipeline modules).
+This chapter describes the implementation methodology and key modules of the HPDC Defect Detection System. The implementation is divided into five functional modules: dataset analysis, patch generation, dataset engineering, RF-DETR training, and evaluation and inference.
 
-\section{Test Plan and Test Cases}
+\section {Proposed Methodology (Explain the methodology with diagrams/
+Algorithms/flowchart explanation)}
+\justify
 
-\subsection*{Acceptance Test Plan}
+The core methodology is a \textbf{patch-based sliding-window training pipeline} designed for extreme small-object detection. Since crack bounding boxes occupy less than 0.1\% of the full image area, full-image detection is infeasible. Each HPDC image is divided into overlapping 1024$\times$1024 patches using a stride of 665 px (35\% overlap), with Shapely polygon-aware annotation clipping to preserve accurate ground-truth boundaries.
 
-The acceptance test plan validates that the complete system meets the performance and functional requirements defined in Chapter~2.
-
-\begin{table}[H]
+\begin{figure}[H]
 \centering
-\caption{Acceptance Test Plan}
-\begin{tabular}{lp{5cm}p{4cm}}
-\toprule
-\rowcolor{tableHeader}\tableheadfont Test ID & \tableheadfont Objective & \tableheadfont Success Criterion \\
-\midrule
-ATP-01 & End-to-end detection on unseen HPDC images & At least one correct detection (Crack or Cold Shut) in defect-positive test images \\
-\rowcolor{tableRowAlt}ATP-02 & mAP50-95 on test split $\geq$ 0.20 & EMA mAP50-95 $\geq$ 0.20 \\
-ATP-03 & Per-class Crack AP $>$ 0 on test set & Crack AP50-95 $>$ 0.10 \\
-\rowcolor{tableRowAlt}ATP-04 & Licence compliance verification & Model and all key libraries use Apache 2.0 / MIT / BSD \\
-ATP-05 & Inference completes without runtime error & No exceptions on 50 held-out test images \\
-\bottomrule
-\end{tabular}
-\end{table}
+\begin{tikzpicture}[node distance=0.5cm,
+block/.style={rectangle, rounded corners=4pt, draw=magnaDark,
+fill=magnaLightGray, text width=7.5cm,
+minimum height=1cm, align=center, font=\small},
+arrow/.style={-Stealth, thick, color=magnaRed}]
+\node[block, fill=magnaBlue!15, draw=magnaBlue] (input)
+    {\textbf{Input:} Full image + COCO polygon annotations};
+\node[block, below=0.5cm of input] (stride)
+    {\textbf{Sliding Window:} Stride $= 1024 \times (1 - 0.35) = 665$\,px};
+\node[block, below=0.5cm of stride] (extract)
+    {\textbf{Patch Extraction:} Crop \texttt{image[y:y+H, x:x+W]}};
+\node[block, below=0.5cm of extract] (shapely)
+    {\textbf{Polygon Clipping (Shapely):} Intersect polygon with patch boundary;
+    recompute bbox from clipped polygon};
+\node[block, below=0.5cm of shapely] (balance)
+    {\textbf{Balancing:} Downsample negatives to 1:2 pos:neg ratio};
+\node[block, below=0.5cm of balance] (aug)
+    {\textbf{Augmentation:} Horizontal flip on crack patches only};
+\node[block, fill=successGreen!10, draw=successGreen, below=0.5cm of aug] (output)
+    {\textbf{Output:} COCO-format JSON + PNG patches for training};
+\draw[arrow] (input)   -- (stride);
+\draw[arrow] (stride)  -- (extract);
+\draw[arrow] (extract) -- (shapely);
+\draw[arrow] (shapely) -- (balance);
+\draw[arrow] (balance) -- (aug);
+\draw[arrow] (aug)     -- (output);
+\end{tikzpicture}
+\caption{Implementation methodology flowchart: patch-based data engineering pipeline.}
+\label{fig:methodology}
+\end{figure}
 
-\subsection*{Acceptance Test Cases}
+The EMA training strategy smooths weight updates:
+\begin{equation}
+\boldsymbol{\theta}_{\text{EMA}} = \alpha \cdot \boldsymbol{\theta}_{\text{EMA}} + (1-\alpha) \cdot \boldsymbol{\theta}_{\text{current}}
+\end{equation}
+where $\alpha \approx 0.9999$. EMA weights consistently outperformed instantaneous weights across all experiments.
 
-\begin{table}[H]
-\centering
-\caption{Acceptance Test Cases}
-\begin{tabular}{llp{4.5cm}p{3.5cm}}
-\toprule
-\rowcolor{tableHeader}\tableheadfont TC ID & \tableheadfont Test & \tableheadfont Input & \tableheadfont Expected Output \\
-\midrule
-ATC-01 & Detection on defect image & HPDC image with ground-truth crack annotation & $\geq 1$ Crack bbox with conf $> 0.3$ \\
-\rowcolor{tableRowAlt}ATC-02 & Detection on clean image & HPDC image with no defects & 0 detections (no false positives above threshold) \\
-ATC-03 & mAP evaluation & Test split (495 patches, 596 annotations) & EMA mAP50-95 $\geq$ 0.20 \\
-\rowcolor{tableRowAlt}ATC-04 & EMA vs Regular checkpoint & Same test split & EMA checkpoint scores higher than regular \\
-ATC-05 & Output image format & Any valid PNG HPDC image & Annotated PNG with coloured bounding boxes \\
-\bottomrule
-\end{tabular}
-\end{table}
+\section {Description of Modules (Briefly describe  important modules
+Modules descriptions
+Module Name :  module( )
+Input :
+Output :
+ Describe Code/ Pseudocode/ flowchart
+}
 
-\subsection*{Unit Test Plan}
+\subsection{Module 1: Dataset Analysis Module}
 
-Unit tests validate each pipeline module in isolation.
+\textbf{Module Name:} \texttt{dataset\_analysis()}
 
-\begin{table}[H]
-\centering
-\caption{Unit Test Plan}
-\begin{tabular}{lp{5cm}p{4cm}}
-\toprule
-\rowcolor{tableHeader}\tableheadfont Test ID & \tableheadfont Module & \tableheadfont Test Focus \\
-\midrule
-UTP-01 & PatchGenerator & Correct stride and patch count for given image size and overlap \\
-\rowcolor{tableRowAlt}UTP-02 & PatchGenerator & Polygon clipping does not produce negative bbox coordinates \\
-UTP-03 & DatasetBalancer & Output positive:negative ratio $\leq$ 1:2 after balancing \\
-\rowcolor{tableRowAlt}UTP-04 & Augmentor & Flipped bbox $x_{\text{new}} = W - x - w$ is within patch boundary \\
-UTP-05 & DefectDetector & Model output shape: $N \times 6$ (\texttt{[x, y, w, h, conf, class]}) \\
-\rowcolor{tableRowAlt}UTP-06 & CoordinateMapper & Patch-relative bbox correctly offset to full-image coordinates \\
-\bottomrule
-\end{tabular}
-\end{table}
+\textbf{Input:} Raw COCO JSON annotation file for the full 256-image dataset.
 
-\subsection*{Unit Test Cases}
+\textbf{Output:} Statistical summary of crack/cold shut sizes, class distribution, annotation quality report.
 
-\begin{table}[H]
-\centering
-\caption{Unit Test Cases}
-\begin{tabular}{llp{4.5cm}l}
-\toprule
-\rowcolor{tableHeader}\tableheadfont TC ID & \tableheadfont Function & \tableheadfont Input & \tableheadfont Expected Result \\
-\midrule
-UTC-01 & \texttt{generate\_patches} & $4096\times3000$ image, patch=1024, overlap=0.35 & 30 patches generated \\
-\rowcolor{tableRowAlt}UTC-02 & \texttt{clip\_polygons} & Polygon straddling patch boundary & Intersection polygon; bbox within $[0, 1024]$ \\
-UTC-03 & \texttt{balance(patches)} & 686 positive, 2774 negative & $\leq$ 1372 negative retained \\
-\rowcolor{tableRowAlt}UTC-04 & \texttt{flip\_bbox} & bbox $(100, 50, 200, 80)$, $W=1024$ & $(724, 50, 200, 80)$ \\
-UTC-05 & \texttt{model.forward(patch)} & $1024\times1024$ tensor batch & Tensor shape $(N, 6)$, no NaN values \\
-\rowcolor{tableRowAlt}UTC-06 & \texttt{offset\_bbox} & bbox $(10, 20, 100, 80)$, offset $(665, 0)$ & $(675, 20, 100, 80)$ \\
-\bottomrule
-\end{tabular}
-\end{table}
+\textbf{Description:} This module performs exploratory data analysis (EDA) to characterise the defect dataset. It computes bounding box area distributions, identifies that crack areas occupy a median of 0.065\% of image area, and validates polygon annotation quality. The EDA confirmed that full-image training is infeasible and a patch-based strategy is required.
 
-\begin{findingbox}
-\textbf{Testing Outcome:} All unit tests passed. The acceptance test ATP-02 was met with EMA mAP50-95 = 0.2379 on the Experiment 7 test split. The EMA checkpoint consistently outperformed the regular checkpoint across all three training experiments (ATP-04 confirmed).
-\end{findingbox}
+\begin{lstlisting}[language=Python, caption={Dataset analysis pseudocode}]
+def dataset_analysis(coco_json_path):
+    coco = load_coco(coco_json_path)
+    image_area = 4096 * 3000  # pixels^2
+    for ann in coco['annotations']:
+        bbox_area = ann['bbox'][2] * ann['bbox'][3]
+        relative_area = bbox_area / image_area * 100
+        record(ann['category_id'], relative_area)
+    # Output: median crack area ~ 0.065%, Cold Shut ~ 0.12%
+    plot_distributions()
+\end{lstlisting}
+
+\subsection{Module 2: Patch Generation Module}
+
+\textbf{Module Name:} \texttt{generate\_patches()}
+
+\textbf{Input:} Full HPDC image (4096$\times$3000 PNG), COCO annotation JSON.
+
+\textbf{Output:} Set of 1024$\times$1024 PNG patches + updated COCO JSON with clipped annotations.
+
+\textbf{Description:} Enumerates sliding-window positions with stride 665 px. For each patch, clips all polygon annotations using Shapely geometry intersection and recomputes bounding boxes. Discards annotations where intersection area falls below a minimum threshold.
+
+\begin{lstlisting}[language=Python, caption={Patch generation pseudocode}]
+def generate_patches(image, annotations, patch_size=1024, overlap=0.35):
+    stride = int(patch_size * (1 - overlap))  # 665 px
+    for y in range(0, H - patch_size + 1, stride):
+        for x in range(0, W - patch_size + 1, stride):
+            patch = image.crop(x, y, patch_size, patch_size)
+            patch_box = Polygon([(x,y),(x+S,y),(x+S,y+S),(x,y+S)])
+            clipped = []
+            for ann in annotations:
+                poly  = Polygon(ann['segmentation'])
+                inter = poly.intersection(patch_box)
+                if inter.area > MIN_THRESHOLD:
+                    bbox = inter.bounds  # recomputed bbox
+                    clipped.append(make_coco_ann(bbox, ann['category_id']))
+            save_patch(patch, clipped)
+\end{lstlisting}
+
+\subsection{Module 3: Dataset Engineering Module}
+
+\textbf{Module Name:} \texttt{balance\_and\_augment()}
+
+\textbf{Input:} All generated patches with annotation counts.
+
+\textbf{Output:} Balanced and augmented patch dataset ready for training.
+
+\textbf{Description:} Separates positive (defect-containing) and negative (background) patches. Randomly downsamples negatives to a 1:2 positive:negative ratio. Applies horizontal flip to crack-containing patches, recomputing bounding box coordinates as $x_{\text{new}} = W - x - w$.
+
+\begin{lstlisting}[language=Python, caption={Balancing and augmentation pseudocode}]
+def balance_and_augment(patches):
+    pos = [p for p in patches if p.annotations]
+    neg = [p for p in patches if not p.annotations]
+    neg = random.sample(neg, min(len(neg), 2 * len(pos)))
+    augmented = []
+    for patch in pos:
+        if has_crack(patch):
+            flipped_img  = cv2.flip(patch.image, 1)
+            flipped_anns = [flip_bbox(a, patch.width) for a in patch.annotations]
+            augmented.append(Patch(flipped_img, flipped_anns))
+    return pos + neg + augmented
+
+def flip_bbox(ann, W):
+    x, y, w, h = ann['bbox']
+    return {'bbox': [W - x - w, y, w, h], 'category_id': ann['category_id']}
+\end{lstlisting}
+
+\subsection{Module 4: RF-DETR Training Module}
+
+\textbf{Module Name:} \texttt{train\_rfdetr()}
+
+\textbf{Input:} COCO-format patch dataset (train/val splits), training configuration.
+
+\textbf{Output:} Best EMA checkpoint (\texttt{checkpoint\_best\_ema.pth}), per-epoch mAP metrics.
+
+\textbf{Description:} Fine-tunes RF-DETR Medium with DINOv2 ViT-B backbone using Hungarian bipartite matching loss (classification + $\mathcal{L}_1$ + GIoU). EMA weights are maintained and saved when validation EMA mAP50-95 improves. Best result achieved: EMA mAP50-95 = 0.2379 at Epoch 10.
+
+\begin{lstlisting}[language=Python, caption={RF-DETR training configuration (Experiment 7)}]
+model = RFDETRMedium(pretrain_weights='rf-detr-medium.pth')
+model.train(
+    dataset_dir = 'RF_DETR_Medium_1024/',
+    epochs      = 20,
+    batch_size  = 12,
+    imgsz       = 1024,
+    workers     = 16,
+    device      = 'cuda'
+)
+# Results: EMA mAP50-95 = 0.2379, mAP50 = 0.4647 (Epoch 10)
+\end{lstlisting}
+
+\subsection{Module 5: Evaluation and Inference Module}
+
+\textbf{Module Name:} \texttt{evaluate()} / \texttt{detect()}
+
+\textbf{Input:} Test split patches (COCO format) or full HPDC image + trained EMA checkpoint.
+
+\textbf{Output:} COCO mAP50-95, mAP50, per-class AP (evaluation) or annotated image with bounding boxes (inference).
+
+\textbf{Description:} Evaluation runs the EMA checkpoint against the test split using pycocotools for standard COCO metrics. Inference generates patches from a full input image, runs RF-DETR forward pass on each patch, maps bounding boxes back to full-image coordinates, and renders the annotated output.
+
+\begin{lstlisting}[language=Python, caption={Inference pseudocode}]
+def detect(image_path, checkpoint, conf_threshold=0.3):
+    model = RFDETRMedium()
+    model.load_state_dict(torch.load(checkpoint))
+    model.eval()
+    image   = load_image(image_path)
+    patches = generate_patches(image, patch_size=1024, overlap=0.35)
+    results = []
+    for (patch, x_off, y_off) in patches:
+        dets = model(patch)
+        for det in dets:
+            if det.confidence > conf_threshold:
+                det.bbox = offset_bbox(det.bbox, x_off, y_off)
+                results.append(det)
+    return annotate_image(image, results)
+\end{lstlisting}

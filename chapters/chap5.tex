@@ -1,156 +1,224 @@
-\chapter{IMPLEMENTATION}
+\chapter{SYSTEM DESIGN}
 
 \justify
 
-This chapter describes the implementation methodology and key modules of the HPDC Defect Detection System. The implementation is divided into three functional stages: data engineering (patch generation, balancing, augmentation), model training (RF-DETR fine-tuning), and inference.
+This chapter describes the architecture and design of the HPDC Defect Detection System, covering the RF-DETR model architecture, class structure, data flow, and dataset schema.
 
-\section{Proposed Methodology}
+\section {Architecture of the system (explanation)}
+\justify
 
-The core methodology is a \textbf{patch-based sliding-window training pipeline} designed specifically for extreme small-object detection. Since crack bounding boxes occupy less than 0.1\% of the full image area, full-image training is infeasible. The approach divides each full HPDC image into overlapping 1024$\times$1024 patches, with Shapely polygon-aware annotation clipping to preserve accurate ground-truth boundaries.
+The system architecture consists of three major components: the Data Engineering Pipeline, the RF-DETR Detection Model, and the Evaluation and Inference Engine. RF-DETR Medium uses a DINOv2 ViT-B backbone, a multi-scale projector neck, and a multi-scale deformable DETR decoder producing end-to-end detections without NMS.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[node distance=0.5cm,
-block/.style={rectangle, rounded corners=4pt, draw=magnaDark,
-fill=magnaLightGray, text width=7.5cm,
-minimum height=1cm, align=center, font=\small},
+mainblock/.style={rectangle, rounded corners=5pt, draw=magnaDark,
+fill=magnaLightGray, text width=9cm,
+minimum height=1.1cm, align=center, font=\small},
+subblock/.style={rectangle, rounded corners=3pt, draw=magnaGray,
+fill=white, text width=8cm,
+minimum height=0.9cm, align=center, font=\footnotesize},
 arrow/.style={-Stealth, thick, color=magnaRed}]
-
-\node[block, fill=magnaBlue!15, draw=magnaBlue] (input)
-    {\textbf{Input:} Full image + COCO polygon annotations};
-\node[block, below=0.5cm of input] (stride)
-    {\textbf{Sliding Window:} Stride $= 1024 \times (1 - 0.35) = 665$\,px};
-\node[block, below=0.5cm of stride] (extract)
-    {\textbf{Patch Extraction:} Crop \texttt{image[y:y+H, x:x+W]}};
-\node[block, below=0.5cm of extract] (shapely)
-    {\textbf{Polygon Clipping (Shapely):} Intersect polygon with patch boundary;
-    recompute bbox from clipped polygon};
-\node[block, below=0.5cm of shapely] (balance)
-    {\textbf{Balancing:} Downsample negatives to 1:2 pos:neg ratio};
-\node[block, below=0.5cm of balance] (aug)
-    {\textbf{Augmentation:} Horizontal flip on crack patches only};
-\node[block, fill=successGreen!10, draw=successGreen, below=0.5cm of aug] (output)
-    {\textbf{Output:} COCO-format JSON + PNG patches};
-
-\draw[arrow] (input)   -- (stride);
-\draw[arrow] (stride)  -- (extract);
-\draw[arrow] (extract) -- (shapely);
-\draw[arrow] (shapely) -- (balance);
-\draw[arrow] (balance) -- (aug);
-\draw[arrow] (aug)     -- (output);
+\node[mainblock, fill=magnaBlue!15, draw=magnaBlue] (input)
+    {\textbf{Input Patch} --- 1024$\times$1024 pixels};
+\node[mainblock, fill=magnaRed!10, draw=magnaRed, below=0.6cm of input] (backbone)
+    {\textbf{BACKBONE: DINOv2-style Vision Transformer (ViT-B)}};
+\node[subblock, below=0.2cm of backbone] (pembed)
+    {Patch Embedding (16$\times$16) + Position Embeddings + Register Tokens};
+\node[subblock, below=0.2cm of pembed] (vitblocks)
+    {Transformer Encoder: Windowed $\leftrightarrow$ Global Attention (alternating)\\
+    Output: Multi-scale feature maps \{C3, C4, C5\}};
+\node[mainblock, fill=successGreen!10, draw=successGreen, below=0.6cm of vitblocks] (neck)
+    {\textbf{MULTI-SCALE PROJECTOR (Neck)} --- C2f-style feature aggregation};
+\node[mainblock, fill=warningOrange!10, draw=warningOrange, below=0.6cm of neck] (decoder)
+    {\textbf{DEFORMABLE DETR DECODER}};
+\node[subblock, below=0.2cm of decoder] (queries)
+    {300 Learnable Object Queries};
+\node[subblock, below=0.2cm of queries] (deformattn)
+    {Multi-scale Deformable Cross-Attention ($K$ sparse sampling points)\\
+    + Feed-Forward Network + Self-Attention between queries};
+\node[subblock, below=0.2cm of deformattn] (heads)
+    {Classification MLP $\to$ class \quad|\quad Bounding Box MLP $\to$ $(c_x, c_y, w, h)$};
+\node[mainblock, fill=magnaBlue!10, draw=magnaBlue, below=0.6cm of heads] (matching)
+    {\textbf{BIPARTITE MATCHING (Training)} --- Hungarian Algorithm\\
+    Loss = Classification + $\mathcal{L}_1$ + GIoU};
+\node[mainblock, fill=successGreen!15, draw=successGreen, below=0.6cm of matching] (output)
+    {\textbf{Output: \{class, confidence, bbox\}} --- No NMS required};
+\draw[arrow] (input) -- (backbone);
+\draw[arrow] (backbone) -- (pembed);
+\draw[arrow] (pembed) -- (vitblocks);
+\draw[arrow] (vitblocks) -- (neck);
+\draw[arrow] (neck) -- (decoder);
+\draw[arrow] (decoder) -- (queries);
+\draw[arrow] (queries) -- (deformattn);
+\draw[arrow] (deformattn) -- (heads);
+\draw[arrow] (heads) -- (matching);
+\draw[arrow] (matching) -- (output);
 \end{tikzpicture}
-\caption{Proposed methodology flowchart: patch-based data engineering pipeline.}
-\label{fig:methodology}
+\caption{RF-DETR Medium complete architecture. Each patch is processed end-to-end from DINOv2 backbone through deformable decoder to produce detections without NMS.}
+\label{fig:rfdetr_arch}
 \end{figure}
 
-The EMA (Exponential Moving Average) training strategy smooths weight updates across epochs:
-\begin{equation}
-\boldsymbol{\theta}_{\text{EMA}} = \alpha \cdot \boldsymbol{\theta}_{\text{EMA}} + (1-\alpha) \cdot \boldsymbol{\theta}_{\text{current}}
-\end{equation}
-where $\alpha$ is the decay factor (typically 0.9999). EMA weights consistently outperformed instantaneous weights across all experiments.
+\section {Class Diagram (with brief explanation)}
+\justify
 
-\section{Description of Modules}
+The system is organised into four primary Python classes. \texttt{PatchGenerator} handles sliding-window extraction and Shapely polygon clipping. \texttt{DatasetBuilder} applies balancing and augmentation. \texttt{RFDETRTrainer} wraps the training loop with EMA tracking. \texttt{DefectDetector} handles inference and coordinate mapping.
 
-\subsection*{Module 1: Patch Generator}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    classbox/.style={rectangle, draw=magnaDark, fill=magnaLightGray,
+    minimum width=4.5cm, font=\small},
+    arrow/.style={-Stealth, thick, color=magnaBlue}
+]
+\node[classbox, minimum height=2.2cm, align=left] (pg) at (0,0) {
+    \textbf{PatchGenerator}\\
+    \rule{4.3cm}{0.4pt}\\
+    -- patch\_size: int\\
+    -- overlap: float\\
+    \rule{4.3cm}{0.4pt}\\
+    + generate(image, annotations)\\
+    + clip\_polygons(patch\_box)
+};
+\node[classbox, minimum height=2.2cm, align=left] (db) at (5.5,0) {
+    \textbf{DatasetBuilder}\\
+    \rule{4.3cm}{0.4pt}\\
+    -- balance\_ratio: float\\
+    -- aug\_classes: list\\
+    \rule{4.3cm}{0.4pt}\\
+    + balance(patches)\\
+    + augment\_crack\_patches()
+};
+\node[classbox, minimum height=2.2cm, align=left] (tr) at (0,-3.5) {
+    \textbf{RFDETRTrainer}\\
+    \rule{4.3cm}{0.4pt}\\
+    -- model: RFDETRMedium\\
+    -- epochs: int\\
+    \rule{4.3cm}{0.4pt}\\
+    + train(dataset)\\
+    + save\_ema\_checkpoint()
+};
+\node[classbox, minimum height=2.2cm, align=left] (dd) at (5.5,-3.5) {
+    \textbf{DefectDetector}\\
+    \rule{4.3cm}{0.4pt}\\
+    -- checkpoint\_path: str\\
+    -- conf\_threshold: float\\
+    \rule{4.3cm}{0.4pt}\\
+    + detect(image\_path)\\
+    + annotate\_image(detections)
+};
+\draw[arrow] (pg) -- (db);
+\draw[arrow] (db) -- (tr);
+\draw[arrow] (tr) -- (dd);
+\draw[arrow] (pg) -- (tr);
+\end{tikzpicture}
+\caption{Class diagram of the four main system components.}
+\label{fig:class_diagram}
+\end{figure}
 
-\begin{itemize}[leftmargin=2em, topsep=2pt]
-    \item \textbf{Input:} Full HPDC image (4096$\times$3000 PNG), COCO annotation JSON
-    \item \textbf{Output:} Set of 1024$\times$1024 PNG patches + updated COCO JSON with clipped annotations
-    \item \textbf{Description:} Enumerates sliding-window positions with stride 665 px. For each patch, clips all polygon annotations using Shapely geometry intersection. Recomputes axis-aligned bounding boxes from clipped polygons. Discards annotations where intersection area falls below a minimum threshold.
-\end{itemize}
+\section {Sequence diagram (if applicable with brief explanation)}
+\justify
 
-\begin{lstlisting}[language=Python, caption={Patch Generator pseudocode}]
-def generate_patches(image, annotations, patch_size=1024, overlap=0.35):
-    stride = int(patch_size * (1 - overlap))   # = 665 px
-    patches = []
-    for y in range(0, image.height - patch_size + 1, stride):
-        for x in range(0, image.width - patch_size + 1, stride):
-            patch = image.crop(x, y, patch_size, patch_size)
-            patch_box = Polygon([(x,y),(x+S,y),(x+S,y+S),(x,y+S)])
-            clipped_anns = []
-            for ann in annotations:
-                poly = Polygon(ann['segmentation'])
-                intersection = poly.intersection(patch_box)
-                if intersection.area > MIN_AREA_THRESHOLD:
-                    new_bbox = intersection.bounds  # recomputed bbox
-                    clipped_anns.append(make_coco_ann(new_bbox, ann['category_id']))
-            patches.append((patch, clipped_anns))
-    return patches
-\end{lstlisting}
+The sequence diagram below shows the inference flow: a quality engineer submits an image, the system generates patches, runs RF-DETR on each, and returns annotated detections.
 
-\subsection*{Module 2: Dataset Balancer and Augmentor}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\small]
+\draw[thick] (0,0) -- (0,-7);   \node at (0,0.3)   {\textbf{Engineer}};
+\draw[thick] (3,0) -- (3,-7);   \node at (3,0.3)   {\textbf{DefectDetector}};
+\draw[thick] (6.5,0) -- (6.5,-7); \node at (6.5,0.3) {\textbf{PatchGenerator}};
+\draw[thick] (10,0) -- (10,-7);  \node at (10,0.3)  {\textbf{RF-DETR}};
+\fill[magnaBlue!20] (2.85,-0.5) rectangle (3.15,-6.5);
+\fill[magnaBlue!20] (6.35,-1.2) rectangle (6.65,-2.8);
+\fill[magnaBlue!20] (9.85,-3.2) rectangle (10.15,-5.0);
+\draw[-Stealth, magnaRed] (0,-0.8)  -- (3,-0.8)   node[midway, above, font=\tiny] {detect(image\_path)};
+\draw[-Stealth, magnaRed] (3,-1.5)  -- (6.5,-1.5) node[midway, above, font=\tiny] {generate\_patches(image)};
+\draw[-Stealth, dashed, magnaBlue] (6.5,-2.6) -- (3,-2.6) node[midway, above, font=\tiny] {return patches[ ]};
+\draw[-Stealth, magnaRed] (3,-3.4)  -- (10,-3.4)  node[midway, above, font=\tiny] {forward(patch)};
+\draw[-Stealth, dashed, magnaBlue] (10,-4.8) -- (3,-4.8) node[midway, above, font=\tiny] {return \{class, conf, bbox\}};
+\draw[-Stealth, dashed, magnaBlue] (3,-6.2)  -- (0,-6.2)  node[midway, above, font=\tiny] {return annotated\_image};
+\end{tikzpicture}
+\caption{Sequence diagram for defect detection inference.}
+\label{fig:sequence_diagram}
+\end{figure}
 
-\begin{itemize}[leftmargin=2em, topsep=2pt]
-    \item \textbf{Input:} List of all generated patches with their annotation counts
-    \item \textbf{Output:} Balanced and augmented patch dataset
-    \item \textbf{Description:} Separates patches into positive (contains $\geq 1$ defect annotation) and negative (background only). Randomly downsamples negatives to achieve a 1:2 positive:negative ratio. Then applies horizontal flip to crack-containing patches, recomputing bounding box coordinates as: $x_{\text{new}} = W - x - w$.
-\end{itemize}
+\section {ER diagram  and schema (if applicable) (if applicable with brief explanation)}
+\justify
 
-\begin{lstlisting}[language=Python, caption={Balancing and augmentation pseudocode}]
-def balance_and_augment(patches):
-    positives = [p for p in patches if len(p.annotations) > 0]
-    negatives  = [p for p in patches if len(p.annotations) == 0]
-    # Downsample negatives to 2x positives
-    negatives = random.sample(negatives, min(len(negatives), 2*len(positives)))
-    dataset = positives + negatives
-    # Augment crack patches with horizontal flip
-    augmented = []
-    for patch in dataset:
-        if has_crack(patch):
-            flipped_img  = cv2.flip(patch.image, 1)
-            flipped_anns = [flip_bbox(ann, patch.width) for ann in patch.annotations]
-            augmented.append(Patch(flipped_img, flipped_anns))
-    return dataset + augmented
+The system does not use a relational database. Data is stored as COCO-format JSON files and PNG patches. The logical schema is:
 
-def flip_bbox(ann, W):
-    x, y, w, h = ann['bbox']
-    return {'bbox': [W - x - w, y, w, h], 'category_id': ann['category_id']}
-\end{lstlisting}
+\begin{table}[H]
+\centering
+\caption{COCO JSON Logical Schema}
+\begin{tabular}{lll}
+\toprule
+\rowcolor{tableHeader}\tableheadfont Entity & \tableheadfont Key Fields & \tableheadfont Relationship \\
+\midrule
+Image       & id, file\_name, width, height          & 1:N with Annotations \\
+\rowcolor{tableRowAlt}Annotation  & id, image\_id, category\_id, bbox, segmentation & N:1 with Image \\
+Category    & id, name (Crack / Cold Shut)           & 1:N with Annotations \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\subsection*{Module 3: RF-DETR Trainer}
+\section {State transition diagram(if applicable)}
 
-\begin{itemize}[leftmargin=2em, topsep=2pt]
-    \item \textbf{Input:} COCO-format patch dataset (train/val/test splits), training configuration
-    \item \textbf{Output:} Best EMA checkpoint (\texttt{checkpoint\_best\_ema.pth}), per-epoch mAP metrics
-    \item \textbf{Description:} Fine-tunes RF-DETR Medium with DINOv2 ViT-B backbone. Training uses Hungarian bipartite matching loss (classification + $\mathcal{L}_1$ + GIoU). EMA weights are maintained throughout and saved when validation EMA mAP50-95 improves.
-\end{itemize}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    state/.style={draw, rounded corners, fill=magnaLightGray, minimum width=2.8cm, minimum height=0.8cm, font=\small, align=center},
+    arrow/.style={-Stealth, thick, color=magnaRed}
+]
+\node[state, fill=magnaBlue!20]    (init)  at (0,0)    {Initialise\\Model};
+\node[state]                       (load)  at (4,0)    {Load\\Dataset};
+\node[state]                       (train) at (8,0)    {Training\\Epoch};
+\node[state]                       (eval)  at (8,-2.2) {Validate\\(mAP)};
+\node[state, fill=successGreen!20] (save)  at (4,-2.2) {Save EMA\\Checkpoint};
+\node[state, fill=magnaRed!20]     (done)  at (0,-2.2) {Training\\Complete};
+\draw[arrow] (init)  -- (load);
+\draw[arrow] (load)  -- (train);
+\draw[arrow] (train) -- (eval);
+\draw[arrow] (eval)  -- node[right, font=\tiny] {mAP improved} (save);
+\draw[arrow] (eval)  to[bend left=30] node[above, font=\tiny] {epoch $<$ max} (train);
+\draw[arrow] (save)  -- (done);
+\draw[arrow] (save)  to[bend right=30] node[below, font=\tiny] {continue} (train);
+\end{tikzpicture}
+\caption{State transition diagram for the RF-DETR training process.}
+\end{figure}
 
-\begin{lstlisting}[language=Python, caption={Training configuration (Experiment 7)}]
-model = RFDETRMedium(pretrain_weights='rf-detr-medium.pth')
-model.train(
-    dataset_dir   = 'RF_DETR_Medium_1024/',
-    epochs        = 20,
-    batch_size    = 12,
-    imgsz         = 1024,
-    workers       = 16,
-    device        = 'cuda'
-)
-# Best checkpoint: checkpoint_best_ema.pth
-# Best EMA mAP50-95: 0.2379  |  mAP50: 0.4647
-\end{lstlisting}
+\section {Data Set Description(if applicable)}
 
-\subsection*{Module 4: Inference Engine}
+\begin{table}[H]
+\centering
+\caption{Original Dataset Summary}
+\begin{tabular}{lc}
+\toprule
+\rowcolor{tableHeader}\tableheadfont Parameter & \tableheadfont Value \\
+\midrule
+Dataset name       & Cast\_Cracks\_Annotated\_Coco \\
+\rowcolor{tableRowAlt}Training images    & 173 \\
+Validation images  & 50 \\
+\rowcolor{tableRowAlt}Test images        & 33 \\
+\textbf{Total images} & \textbf{256} \\
+\rowcolor{tableRowAlt}Image resolution   & 4096 $\times$ 3000 pixels \\
+Annotation format  & COCO JSON (polygon-level) \\
+\rowcolor{tableRowAlt}Defect classes     & Crack, Cold Shut \\
+Median crack area  & $\approx$0.065\% of image ($\sim90\times90$ px) \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\begin{itemize}[leftmargin=2em, topsep=2pt]
-    \item \textbf{Input:} Full HPDC casting image, trained EMA checkpoint
-    \item \textbf{Output:} Annotated image with bounding boxes for Crack / Cold Shut detections
-    \item \textbf{Description:} Loads the EMA checkpoint, generates 1024$\times$1024 patches from the input image, runs RF-DETR forward pass on each patch, maps bounding box coordinates back to the full image coordinate system, and renders annotated output.
-\end{itemize}
-
-\begin{lstlisting}[language=Python, caption={Inference pseudocode}]
-def detect(image_path, checkpoint, conf_threshold=0.3):
-    model = RFDETRMedium()
-    model.load_state_dict(torch.load(checkpoint))
-    model.eval()
-    image   = load_image(image_path)
-    patches = generate_patches(image, patch_size=1024, overlap=0.35)
-    results = []
-    for (patch, x_offset, y_offset) in patches:
-        dets = model(patch)            # {class, confidence, bbox}
-        for det in dets:
-            if det.confidence > conf_threshold:
-                # Map bbox back to full image coordinates
-                det.bbox = offset_bbox(det.bbox, x_offset, y_offset)
-                results.append(det)
-    return annotate_image(image, results)
-\end{lstlisting}
+\begin{table}[H]
+\centering
+\caption{Final Patch Dataset Summary (Experiment 7)}
+\begin{tabular}{lcc}
+\toprule
+\rowcolor{tableHeader}\tableheadfont Split & \tableheadfont Images & \tableheadfont Annotations \\
+\midrule
+Train       & 2,939 & 2,743 \\
+\rowcolor{tableRowAlt}Validation  & 750   & 705   \\
+Test        & 495   & 596   \\
+\rowcolor{tableRowAlt}\textbf{Total} & \textbf{4,184} & \textbf{4,044} \\
+\bottomrule
+\end{tabular}
+\end{table}

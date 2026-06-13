@@ -1,171 +1,54 @@
-\chapter{SOFTWARE REQUIREMENT SPECIFICATION}
+\chapter{Introduction}
 
 \justify
 
-This chapter formally specifies the functional and non-functional requirements of the HPDC Casting Surface Defect Detection System. The system ingests high-resolution HPDC casting images, applies a patch-based deep learning pipeline, and outputs bounding box detections annotated with class labels and confidence scores for Crack and Cold Shut defects.
+Magna International is one of the world's largest automotive component suppliers, producing structural and powertrain parts via High-Pressure Die Casting (HPDC). In HPDC, molten aluminium is injected into reusable steel dies at extreme pressures, producing complex near-net-shape components at high production rates. The two primary defect classes targeted in this project are Cracks --- linear fractures posing structural safety risks --- and Cold Shuts --- flow lines where two metal fronts fail to fuse. Automated vision-based detection is critical for reliable, consistent quality assurance at production speed.
 
-\section{Overview of SRS}
+\section{Preamble (Provide Introduction of the project)}
 \justify
 
-The Software Requirements Specification (SRS) defines what the system must do and the constraints under which it must operate. The system has two primary stakeholders: Magna International (end user requiring production-scale defect detection) and the university research team (developers responsible for model training, evaluation, and delivery). The SRS covers the Phase 1 scope: detection and localisation of surface defects using bounding boxes.
+This project develops an end-to-end automated surface defect detection system for HPDC aluminium castings in partnership with Magna International. The system uses RF-DETR Medium, a Detection Transformer with a DINOv2 ViT-B backbone, fine-tuned on a patch-based dataset derived from 256 high-resolution HPDC casting images. The core innovation is a sliding-window patch pipeline that converts full 4096$\times$3000 pixel images into 1024$\times$1024 training patches, making it possible to detect cracks that occupy less than 0.1\% of the image area --- a scale at which standard full-image detectors fail entirely.
 
-\section{Requirement Specifications}
+The project is structured in two phases. Phase 1 (current) covers bounding box detection and localisation of Crack and Cold Shut defects. Phase 2 (deferred) will extend to pixel-level segmentation and physical crack length measurement in millimetres.
+
+\section{Motivation}
 \justify
 
-The system is decomposed into a data engineering pipeline, a model training framework, and an inference engine. The requirements below govern all three components.
-
-\subsection{Functional Requirements}
+The motivation for this project arises from a combination of industrial necessity and technical challenge:
 
 \begin{itemize}[leftmargin=2em]
-    \item \textbf{FR1 --- Image Ingestion:} The system shall accept high-resolution HPDC casting images (up to 4096$\times$3000 pixels) in PNG or JPEG format as input.
-    \item \textbf{FR2 --- Patch Generation:} The system shall divide input images into overlapping patches using a configurable sliding-window strategy (patch size: 768 or 1024 px; overlap: 20\%--50\%).
-    \item \textbf{FR3 --- Annotation Clipping:} The system shall accurately clip COCO polygon annotations to patch boundaries using polygon-aware geometry (Shapely library), recomputing bounding boxes from clipped polygons.
-    \item \textbf{FR4 --- Dataset Balancing:} The system shall support configurable downsampling of background (negative) patches to achieve a target positive:negative ratio.
-    \item \textbf{FR5 --- Augmentation:} The system shall support selective data augmentation applied only to defect-containing patches (horizontal flip), with automatic bounding box coordinate recomputation.
-    \item \textbf{FR6 --- Model Training:} The system shall fine-tune an RF-DETR Medium model on the generated patch dataset, supporting configurable batch size, epochs, input resolution, and worker count.
-    \item \textbf{FR7 --- Checkpoint Management:} The system shall maintain both a regular checkpoint and an EMA (Exponential Moving Average) checkpoint during training, saving the best-performing checkpoint on the validation set.
-    \item \textbf{FR8 --- Evaluation:} The system shall compute and report COCO-standard metrics: mAP50-95, mAP50, and per-class AP (Crack, Cold Shut) on the validation and test splits.
-    \item \textbf{FR9 --- Inference:} The system shall perform patch-based inference on full HPDC images, producing bounding box detections with class labels and confidence scores.
-    \item \textbf{FR10 --- Licence Compliance:} The system shall use only model architectures and libraries under licences compatible with commercial deployment (Apache 2.0 preferred).
+    \item \textbf{Safety criticality:} HPDC components are used in structural automotive applications. Undetected cracks can propagate under mechanical and thermal loads, leading to part failure and safety hazards downstream.
+    \item \textbf{Production scale:} A single experienced inspector evaluating thousands of parts per shift introduces fatigue-induced inconsistency. Automated detection provides reproducible results at machine speed.
+    \item \textbf{Extreme scale challenge:} Exploratory data analysis revealed that crack bounding boxes occupy as little as 0.065\% of the total image area (roughly $90\times90$ pixels on a 12.3~MP image). This makes crack detection one of the hardest small-object detection problems in industrial computer vision.
+    \item \textbf{Commercial licensing:} YOLO-family models (versions 8 and beyond) use the AGPL-3.0 licence, which requires derivative commercial products to also be open-sourced --- incompatible with industrial deployment. RF-DETR (Apache 2.0) is the commercially viable alternative.
 \end{itemize}
 
-\subsection{Use Case Diagrams}
+\section{Literature Study}
+\justify
 
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-    actor/.style={draw, circle, minimum size=0.8cm, font=\small},
-    usecase/.style={draw, ellipse, minimum width=4cm, minimum height=0.8cm, font=\small, align=center},
-    box/.style={draw, rectangle, dashed, minimum width=8cm, minimum height=7cm}
-]
-% System boundary
-\draw[dashed] (1.5,-3.5) rectangle (9.5,3.5);
-\node[font=\small\bfseries] at (5.5,3.8) {HPDC Defect Detection System};
+Automated defect detection in manufacturing has advanced substantially with deep convolutional neural networks. Traditional approaches relied on hand-crafted features --- HOG descriptors, LBP histograms, Gabor filters --- combined with classical classifiers such as SVM or AdaBoost \cite{xu2020}. Deep learning methods have supplanted these by learning hierarchical representations directly from labelled data.
 
-% Actors
-\node[font=\small, align=center] at (-1, 1.5) {Quality\\Engineer};
-\draw (-1,0.8) circle (0.3cm);
-\draw (-1,0.5) -- (-1,-0.2);
-\draw (-1,-0.2) -- (-1.3,-0.6);
-\draw (-1,-0.2) -- (-0.7,-0.6);
-\draw (-1,0.5) -- (-1.3,0.2);
-\draw (-1,0.5) -- (-0.7,0.2);
+The Detection Transformer (DETR) paradigm \cite{carion2020} reformulated object detection as a direct set prediction problem, eliminating hand-designed anchor boxes and non-maximum suppression. Deformable DETR \cite{zhu2020} improved convergence and small-object performance through sparse deformable attention. \textbf{RF-DETR} \cite{robinson2025} builds on this lineage with a DINOv2 ViT-B backbone \cite{oquab2023}, multi-scale feature projector, and deformable decoder, making it ideal for fine-tuning on small industrial datasets with challenging object scales. Xu et al.\ \cite{xu2020} demonstrated the viability of machine learning for internal casting crack detection, motivating this surface-defect extension.
 
-\node[font=\small, align=center] at (-1,-1.8) {ML\\Engineer};
-\draw (-1,-2.5) circle (0.3cm);
-\draw (-1,-2.8) -- (-1,-3.5);
-\draw (-1,-3.5) -- (-1.3,-3.9);
-\draw (-1,-3.5) -- (-0.7,-3.9);
-\draw (-1,-2.8) -- (-1.3,-3.1);
-\draw (-1,-2.8) -- (-0.7,-3.1);
+\section{Problem Definition}
+\justify
 
-% Use cases
-\node[usecase] (uc1) at (5.5, 2.5) {Ingest HPDC Image};
-\node[usecase] (uc2) at (5.5, 1.2) {Generate Patches};
-\node[usecase] (uc3) at (5.5, 0.0) {Train RF-DETR Model};
-\node[usecase] (uc4) at (5.5,-1.2) {Evaluate Model (mAP)};
-\node[usecase] (uc5) at (5.5,-2.5) {Run Inference};
-
-% Lines
-\draw (-0.7, 0.8) -- (3.5, 2.5);
-\draw (-0.7, 0.8) -- (3.5,-2.5);
-\draw (-0.7,-2.5) -- (3.5, 1.2);
-\draw (-0.7,-2.5) -- (3.5, 0.0);
-\draw (-0.7,-2.5) -- (3.5,-1.2);
-\end{tikzpicture}
-\caption{Use Case Diagram for HPDC Defect Detection System}
-\end{figure}
-
-\subsection{Use Case Descriptions using Scenarios (Pressman Template)}
-
-\begin{table}[H]
-\centering
-\caption{Use Case: Run Defect Detection Inference}
-\begin{tabular}{p{3.5cm} p{9cm}}
-\toprule
-\rowcolor{tableHeader}\tableheadfont Field & \tableheadfont Description \\
-\midrule
-Use Case ID       & UC-05 \\
-\rowcolor{tableRowAlt}Use Case Name     & Run Defect Detection Inference \\
-Actor             & Quality Engineer \\
-\rowcolor{tableRowAlt}Pre-condition     & Trained RF-DETR model checkpoint exists; input image is available \\
-Description       & The quality engineer submits an HPDC casting image. The system generates patches, runs RF-DETR inference on each patch, and returns annotated detections. \\
-\rowcolor{tableRowAlt}Basic Flow        & 1. Engineer provides input image path. 2. System slices image into 1024$\times$1024 patches with 35\% overlap. 3. RF-DETR processes each patch. 4. System returns bounding boxes with class and confidence. \\
-Alternate Flow    & If no defects are detected in any patch, system returns ``No defects found''. \\
-\rowcolor{tableRowAlt}Exception Flow    & If image resolution is below minimum threshold, system raises an error. \\
-Post-condition    & Detection results are displayed/saved with annotated bounding boxes. \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[H]
-\centering
-\caption{Use Case: Train RF-DETR Model}
-\begin{tabular}{p{3.5cm} p{9cm}}
-\toprule
-\rowcolor{tableHeader}\tableheadfont Field & \tableheadfont Description \\
-\midrule
-Use Case ID       & UC-03 \\
-\rowcolor{tableRowAlt}Use Case Name     & Train RF-DETR Model \\
-Actor             & ML Engineer \\
-\rowcolor{tableRowAlt}Pre-condition     & Patch dataset is generated and split into train/val/test sets in COCO format \\
-Description       & The ML engineer initiates training of RF-DETR Medium on the patch dataset with configurable hyperparameters. \\
-\rowcolor{tableRowAlt}Basic Flow        & 1. Engineer specifies batch size, epochs, input resolution. 2. System loads pre-trained DINOv2 backbone. 3. Training loop runs with EMA tracking. 4. Best EMA checkpoint is saved. \\
-Alternate Flow    & If GPU VRAM is insufficient, batch size is reduced. \\
-\rowcolor{tableRowAlt}Exception Flow    & If training diverges (loss becomes NaN), training halts and logs the error. \\
-Post-condition    & Best EMA checkpoint saved; mAP50-95 reported on validation set. \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Non-Functional Requirements}
+Given 256 high-resolution HPDC casting images (4096$\times$3000 pixels) annotated with COCO polygon-level bounding boxes for two defect classes (Crack and Cold Shut), the problem is defined as:
 
 \begin{itemize}[leftmargin=2em]
-    \item \textbf{NFR1 --- Performance:} Inference on a single 1024$\times$1024 patch shall complete in under 20~ms on a GPU (T4-class or better), supporting real-time production throughput.
-    \item \textbf{NFR2 --- Accuracy:} The system shall achieve a minimum EMA mAP50-95 of 0.20 on the test set to be considered production-viable for Phase 1.
-    \item \textbf{NFR3 --- Licence Compliance:} All model weights, training frameworks, and key libraries shall use licences compatible with commercial deployment (Apache 2.0, MIT, BSD).
-    \item \textbf{NFR4 --- Reproducibility:} All experiments shall be reproducible from documented configurations (patch size, overlap, balancing ratio, augmentation, epochs, batch size).
-    \item \textbf{NFR5 --- Scalability:} The patch generator shall handle any input image resolution above 1024$\times$1024 without code modification.
-    \item \textbf{NFR6 --- Maintainability:} The pipeline shall be modular (separate patch generation, training, and inference scripts) to allow independent updates.
-    \item \textbf{NFR7 --- Security:} Model checkpoints and proprietary HPDC images shall not be distributed publicly and shall remain under Magna International's data governance policy.
-    \item \textbf{NFR8 --- Usability:} The inference module shall produce annotated output images with bounding boxes overlaid, requiring no additional post-processing by the quality engineer.
+    \item \textbf{Primary:} Train an object detection model that accurately detects and localises Crack and Cold Shut defects, measured by COCO mAP50-95 on a held-out test set.
+    \item \textbf{Key constraint:} Crack bounding boxes occupy $<0.1\%$ of image area, making full-image detection infeasible. A patch-based sliding-window strategy is required.
+    \item \textbf{Licence constraint:} The model must use a licence compatible with commercial deployment (Apache 2.0 preferred). YOLO-family models are excluded.
+    \item \textbf{Phase 1 scope:} Bounding box detection only. Segmentation and crack length measurement are deferred to Phase 2.
 \end{itemize}
 
-\section{Software and Hardware Requirement Specifications}
+\section{Objectives of the project}
+\justify
 
-\begin{table}[H]
-\centering
-\caption{Hardware Requirements}
-\begin{tabular}{ll}
-\toprule
-\rowcolor{tableHeader}\tableheadfont Component & \tableheadfont Specification \\
-\midrule
-GPU (Training)     & NVIDIA RTX 6000 Ada (49 GB VRAM) or equivalent \\
-\rowcolor{tableRowAlt}GPU (Inference)    & NVIDIA T4 or better (16 GB VRAM minimum) \\
-CPU                & 16-core or better (for data loading workers) \\
-\rowcolor{tableRowAlt}RAM                & 64 GB minimum for patch generation and training \\
-Storage            & 500 GB SSD (raw images, patches, checkpoints) \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[H]
-\centering
-\caption{Software Requirements}
-\begin{tabular}{ll}
-\toprule
-\rowcolor{tableHeader}\tableheadfont Software & \tableheadfont Version / Details \\
-\midrule
-Operating System   & Ubuntu 20.04 / 22.04 LTS \\
-\rowcolor{tableRowAlt}Python             & 3.10+ \\
-PyTorch            & 2.0+ with CUDA 11.8 \\
-\rowcolor{tableRowAlt}RF-DETR            & Roboflow RF-DETR library (Apache 2.0) \\
-Shapely            & 2.0+ (polygon clipping) \\
-\rowcolor{tableRowAlt}OpenCV             & 4.8+ (image I/O) \\
-pycocotools        & 2.0+ (COCO evaluation) \\
-\rowcolor{tableRowAlt}NumPy              & 1.24+ \\
-Matplotlib         & 3.7+ (visualisation) \\
-\rowcolor{tableRowAlt}Annotation Tool    & COCO-format JSON (generated via Roboflow or CVAT) \\
-\bottomrule
-\end{tabular}
-\end{table}
+\begin{enumerate}[leftmargin=2em]
+    \item Detect and classify surface defects (Crack and Cold Shut) in HPDC casting images using a commercially deployable deep learning model.
+    \item Produce accurate bounding box localisations suitable for downstream quality control actions.
+    \item Establish a reproducible patch-based training pipeline for extreme small-object detection.
+    \item Quantify the impact of dataset engineering choices (patch size, overlap, balancing, augmentation) on detection performance through structured experiments.
+    \item Validate RF-DETR as an Apache 2.0 licensed alternative to YOLO, achieving EMA mAP50-95 $\geq$ 0.20 on the test set.
+\end{enumerate}

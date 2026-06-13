@@ -2,66 +2,6 @@
 
 \justify
 
-The manufacturing industry demands zero-defect quality assurance, particularly in safety-critical components. High-Pressure Die Casting (HPDC) is a widely used process for producing complex aluminium parts at high production rates. Despite its efficiency, HPDC introduces surface and sub-surface defects such as cracks and cold shuts that pose structural safety risks. This project develops an automated deep learning-based detection system to identify these defects reliably and at production speed.
+The manufacturing industry demands zero-defect quality assurance, particularly in safety-critical automotive components. High-Pressure Die Casting (HPDC) is a widely used process for producing complex aluminium structural parts at high production rates. Despite its efficiency, HPDC introduces surface and sub-surface defects --- most critically \textbf{Cracks} and \textbf{Cold Shuts} --- that pose structural safety risks if left undetected. Manual visual inspection is labour-intensive, subjective, and impractical at production scale.
 
-\section{Preamble}
-\justify
-
-Magna International is one of the world's largest automotive component suppliers, producing structural and powertrain parts via High-Pressure Die Casting (HPDC). In HPDC, molten aluminium is injected into reusable steel dies at extreme pressures, producing complex near-net-shape components at high production rates.
-
-Despite its efficiency, HPDC introduces surface and sub-surface defects driven by turbulent mould filling, premature solidification, and thermal stresses. The two primary defect classes of concern in this project are:
-\begin{itemize}[leftmargin=2em]
-    \item \textbf{Cracks:} Linear fractures on the casting surface arising from solidification shrinkage or thermal fatigue. Can propagate under load, posing structural safety risks.
-    \item \textbf{Cold Shuts:} Flow lines where two metal fronts meet but fail to fuse; appear as smooth, often darker seams. Indicate insufficient melt temperature or filling speed.
-\end{itemize}
-
-Manual visual inspection is labour-intensive, inconsistent across inspectors, and impractical at production speed. Automated vision-based detection is therefore critical for quality assurance at scale. This project implements a deep learning pipeline using the RF-DETR object detection model to automate this process, enabling reliable, fast, and repeatable defect identification.
-
-\section{Motivation}
-\justify
-
-The motivation for this project arises from a combination of industrial necessity and technological opportunity:
-
-\begin{itemize}[leftmargin=2em]
-    \item \textbf{Safety criticality:} HPDC components are used in structural automotive applications. Undetected cracks can propagate under mechanical and thermal loads, leading to part failure and safety hazards.
-    \item \textbf{Production scale:} Manual inspection cannot keep pace with high-volume HPDC production lines. A single experienced inspector evaluating thousands of parts per shift introduces fatigue-induced inconsistency.
-    \item \textbf{Extreme scale challenge:} Exploratory data analysis of the dataset revealed that crack bounding boxes occupy as little as 0.065\% of the total image area (approximately 8,000 pixels on a 12.3 megapixel image). This makes crack detection a fundamentally hard computer vision problem requiring specialised patch-based approaches.
-    \item \textbf{Commercial licensing:} YOLO-family models (versions 8 and beyond) operate under the AGPL-3.0 licence, which is incompatible with commercial industrial deployment. RF-DETR (Apache 2.0) provides a commercially viable alternative with state-of-the-art detection performance.
-\end{itemize}
-
-\section{Literature Study}
-\justify
-
-Automated defect detection in manufacturing has advanced substantially with deep convolutional neural networks. Traditional approaches relied on hand-crafted features --- HOG descriptors, LBP histograms, Gabor filters --- combined with classical classifiers such as SVM or AdaBoost \cite{xu2020}. Deep learning methods have supplanted these by learning hierarchical feature representations directly from labelled data.
-
-The Detection Transformer (DETR) paradigm \cite{carion2020} reformulated object detection as a direct set prediction problem, eliminating hand-designed anchor boxes and non-maximum suppression (NMS). Subsequent work --- Deformable DETR \cite{zhu2020}, DAB-DETR, DN-DETR, and DINO --- progressively improved convergence speed and small-object detection performance through deformable attention and positional query refinement.
-
-\textbf{RF-DETR} \cite{robinson2025} builds on this lineage with a DINOv2 ViT backbone \cite{oquab2023}, multi-scale feature projector, and a multi-scale deformable DETR decoder, making it well-suited for domain-specific fine-tuning on small datasets with challenging object scales --- precisely the conditions of this project.
-
-\section{Problem Definition}
-\justify
-
-Given a dataset of 256 high-resolution HPDC casting images (4096$\times$3000 pixels) annotated with COCO polygon-level bounding boxes for two defect classes (Crack and Cold Shut), the problem is defined as:
-
-\begin{itemize}[leftmargin=2em]
-    \item \textbf{Primary:} Train an object detection model that accurately detects and localises Crack and Cold Shut defects in HPDC casting images, measured by COCO mAP50-95.
-    \item \textbf{Constraints:} The model must be usable under a commercial-friendly open-source licence (Apache 2.0 or similar). The model must handle extreme small-object detection (crack area $<$ 0.1\% of image).
-    \item \textbf{Phase 1 scope:} Bounding box detection and localisation only. Crack length measurement (requiring pixel-level segmentation) is deferred to Phase 2.
-\end{itemize}
-
-The key challenge is that full-image training is unsuitable due to the extreme scale of crack objects. A patch-based sliding-window training strategy is required to bring crack regions to a detectable resolution.
-
-\section{Objectives of the Project}
-\justify
-
-The project is structured in two phases. Phase 1 (current) objectives are:
-
-\begin{enumerate}[leftmargin=2em]
-    \item Detect and classify surface defects (Crack, Cold Shut) in HPDC casting images using a deep learning model.
-    \item Produce accurate bounding box localisations suitable for downstream quality control actions.
-    \item Establish a reproducible patch-based training pipeline for extreme small-object detection.
-    \item Identify and quantify the impact of dataset engineering choices (patch size, overlap, balancing, augmentation) on detection performance.
-    \item Select and validate a commercially deployable model architecture under an open-source licence compatible with industrial use.
-\end{enumerate}
-
-Phase 2 (deferred) objectives include pixel-level segmentation of crack regions, morphological skeletonisation, centerline extraction, and crack length estimation in physical units (mm).
+This project, developed in partnership with Magna International, builds an automated deep learning pipeline to detect and localise surface defects in HPDC castings using RF-DETR (Roboflow Detection Transformer), a state-of-the-art object detection model released under the Apache 2.0 licence. The system is specifically engineered to handle the extreme small-object detection challenge inherent to crack inspection, where crack bounding boxes occupy less than 0.1\% of the total image area.
