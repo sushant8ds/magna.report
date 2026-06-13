@@ -1,0 +1,156 @@
+\chapter{IMPLEMENTATION}
+
+\justify
+
+This chapter describes the implementation methodology and key modules of the HPDC Defect Detection System. The implementation is divided into three functional stages: data engineering (patch generation, balancing, augmentation), model training (RF-DETR fine-tuning), and inference.
+
+\section{Proposed Methodology}
+
+The core methodology is a \textbf{patch-based sliding-window training pipeline} designed specifically for extreme small-object detection. Since crack bounding boxes occupy less than 0.1\% of the full image area, full-image training is infeasible. The approach divides each full HPDC image into overlapping 1024$\times$1024 patches, with Shapely polygon-aware annotation clipping to preserve accurate ground-truth boundaries.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.5cm,
+block/.style={rectangle, rounded corners=4pt, draw=magnaDark,
+fill=magnaLightGray, text width=7.5cm,
+minimum height=1cm, align=center, font=\small},
+arrow/.style={-Stealth, thick, color=magnaRed}]
+
+\node[block, fill=magnaBlue!15, draw=magnaBlue] (input)
+    {\textbf{Input:} Full image + COCO polygon annotations};
+\node[block, below=0.5cm of input] (stride)
+    {\textbf{Sliding Window:} Stride $= 1024 \times (1 - 0.35) = 665$\,px};
+\node[block, below=0.5cm of stride] (extract)
+    {\textbf{Patch Extraction:} Crop \texttt{image[y:y+H, x:x+W]}};
+\node[block, below=0.5cm of extract] (shapely)
+    {\textbf{Polygon Clipping (Shapely):} Intersect polygon with patch boundary;
+    recompute bbox from clipped polygon};
+\node[block, below=0.5cm of shapely] (balance)
+    {\textbf{Balancing:} Downsample negatives to 1:2 pos:neg ratio};
+\node[block, below=0.5cm of balance] (aug)
+    {\textbf{Augmentation:} Horizontal flip on crack patches only};
+\node[block, fill=successGreen!10, draw=successGreen, below=0.5cm of aug] (output)
+    {\textbf{Output:} COCO-format JSON + PNG patches};
+
+\draw[arrow] (input)   -- (stride);
+\draw[arrow] (stride)  -- (extract);
+\draw[arrow] (extract) -- (shapely);
+\draw[arrow] (shapely) -- (balance);
+\draw[arrow] (balance) -- (aug);
+\draw[arrow] (aug)     -- (output);
+\end{tikzpicture}
+\caption{Proposed methodology flowchart: patch-based data engineering pipeline.}
+\label{fig:methodology}
+\end{figure}
+
+The EMA (Exponential Moving Average) training strategy smooths weight updates across epochs:
+\begin{equation}
+\boldsymbol{\theta}_{\text{EMA}} = \alpha \cdot \boldsymbol{\theta}_{\text{EMA}} + (1-\alpha) \cdot \boldsymbol{\theta}_{\text{current}}
+\end{equation}
+where $\alpha$ is the decay factor (typically 0.9999). EMA weights consistently outperformed instantaneous weights across all experiments.
+
+\section{Description of Modules}
+
+\subsection*{Module 1: Patch Generator}
+
+\begin{itemize}[leftmargin=2em, topsep=2pt]
+    \item \textbf{Input:} Full HPDC image (4096$\times$3000 PNG), COCO annotation JSON
+    \item \textbf{Output:} Set of 1024$\times$1024 PNG patches + updated COCO JSON with clipped annotations
+    \item \textbf{Description:} Enumerates sliding-window positions with stride 665 px. For each patch, clips all polygon annotations using Shapely geometry intersection. Recomputes axis-aligned bounding boxes from clipped polygons. Discards annotations where intersection area falls below a minimum threshold.
+\end{itemize}
+
+\begin{lstlisting}[language=Python, caption={Patch Generator pseudocode}]
+def generate_patches(image, annotations, patch_size=1024, overlap=0.35):
+    stride = int(patch_size * (1 - overlap))   # = 665 px
+    patches = []
+    for y in range(0, image.height - patch_size + 1, stride):
+        for x in range(0, image.width - patch_size + 1, stride):
+            patch = image.crop(x, y, patch_size, patch_size)
+            patch_box = Polygon([(x,y),(x+S,y),(x+S,y+S),(x,y+S)])
+            clipped_anns = []
+            for ann in annotations:
+                poly = Polygon(ann['segmentation'])
+                intersection = poly.intersection(patch_box)
+                if intersection.area > MIN_AREA_THRESHOLD:
+                    new_bbox = intersection.bounds  # recomputed bbox
+                    clipped_anns.append(make_coco_ann(new_bbox, ann['category_id']))
+            patches.append((patch, clipped_anns))
+    return patches
+\end{lstlisting}
+
+\subsection*{Module 2: Dataset Balancer and Augmentor}
+
+\begin{itemize}[leftmargin=2em, topsep=2pt]
+    \item \textbf{Input:} List of all generated patches with their annotation counts
+    \item \textbf{Output:} Balanced and augmented patch dataset
+    \item \textbf{Description:} Separates patches into positive (contains $\geq 1$ defect annotation) and negative (background only). Randomly downsamples negatives to achieve a 1:2 positive:negative ratio. Then applies horizontal flip to crack-containing patches, recomputing bounding box coordinates as: $x_{\text{new}} = W - x - w$.
+\end{itemize}
+
+\begin{lstlisting}[language=Python, caption={Balancing and augmentation pseudocode}]
+def balance_and_augment(patches):
+    positives = [p for p in patches if len(p.annotations) > 0]
+    negatives  = [p for p in patches if len(p.annotations) == 0]
+    # Downsample negatives to 2x positives
+    negatives = random.sample(negatives, min(len(negatives), 2*len(positives)))
+    dataset = positives + negatives
+    # Augment crack patches with horizontal flip
+    augmented = []
+    for patch in dataset:
+        if has_crack(patch):
+            flipped_img  = cv2.flip(patch.image, 1)
+            flipped_anns = [flip_bbox(ann, patch.width) for ann in patch.annotations]
+            augmented.append(Patch(flipped_img, flipped_anns))
+    return dataset + augmented
+
+def flip_bbox(ann, W):
+    x, y, w, h = ann['bbox']
+    return {'bbox': [W - x - w, y, w, h], 'category_id': ann['category_id']}
+\end{lstlisting}
+
+\subsection*{Module 3: RF-DETR Trainer}
+
+\begin{itemize}[leftmargin=2em, topsep=2pt]
+    \item \textbf{Input:} COCO-format patch dataset (train/val/test splits), training configuration
+    \item \textbf{Output:} Best EMA checkpoint (\texttt{checkpoint\_best\_ema.pth}), per-epoch mAP metrics
+    \item \textbf{Description:} Fine-tunes RF-DETR Medium with DINOv2 ViT-B backbone. Training uses Hungarian bipartite matching loss (classification + $\mathcal{L}_1$ + GIoU). EMA weights are maintained throughout and saved when validation EMA mAP50-95 improves.
+\end{itemize}
+
+\begin{lstlisting}[language=Python, caption={Training configuration (Experiment 7)}]
+model = RFDETRMedium(pretrain_weights='rf-detr-medium.pth')
+model.train(
+    dataset_dir   = 'RF_DETR_Medium_1024/',
+    epochs        = 20,
+    batch_size    = 12,
+    imgsz         = 1024,
+    workers       = 16,
+    device        = 'cuda'
+)
+# Best checkpoint: checkpoint_best_ema.pth
+# Best EMA mAP50-95: 0.2379  |  mAP50: 0.4647
+\end{lstlisting}
+
+\subsection*{Module 4: Inference Engine}
+
+\begin{itemize}[leftmargin=2em, topsep=2pt]
+    \item \textbf{Input:} Full HPDC casting image, trained EMA checkpoint
+    \item \textbf{Output:} Annotated image with bounding boxes for Crack / Cold Shut detections
+    \item \textbf{Description:} Loads the EMA checkpoint, generates 1024$\times$1024 patches from the input image, runs RF-DETR forward pass on each patch, maps bounding box coordinates back to the full image coordinate system, and renders annotated output.
+\end{itemize}
+
+\begin{lstlisting}[language=Python, caption={Inference pseudocode}]
+def detect(image_path, checkpoint, conf_threshold=0.3):
+    model = RFDETRMedium()
+    model.load_state_dict(torch.load(checkpoint))
+    model.eval()
+    image   = load_image(image_path)
+    patches = generate_patches(image, patch_size=1024, overlap=0.35)
+    results = []
+    for (patch, x_offset, y_offset) in patches:
+        dets = model(patch)            # {class, confidence, bbox}
+        for det in dets:
+            if det.confidence > conf_threshold:
+                # Map bbox back to full image coordinates
+                det.bbox = offset_bbox(det.bbox, x_offset, y_offset)
+                results.append(det)
+    return annotate_image(image, results)
+\end{lstlisting}

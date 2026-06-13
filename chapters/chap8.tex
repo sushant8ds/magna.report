@@ -1,0 +1,59 @@
+\chapter{CONCLUSIONS AND FUTURE SCOPE}
+
+\justify
+
+\section*{Conclusions}
+
+This project has successfully developed and validated an automated deep learning pipeline for surface defect detection in HPDC aluminium castings, in partnership with Magna International. The system addresses one of the most challenging problems in industrial computer vision: detecting extremely small defect objects (crack area $<$ 0.1\% of image) reliably and at scale.
+
+The following objectives were achieved in Phase 1:
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{RF-DETR validated as a commercially deployable alternative to YOLO.} The Apache 2.0 licence of RF-DETR makes it fully compatible with Magna International's commercial deployment requirements, unlike YOLO-family models (AGPL-3.0).
+    \item \textbf{Patch-based training pipeline established.} A sliding-window patch generator with Shapely polygon clipping was implemented, converting 256 full HPDC images into over 4,000 training patches at 1024$\times$1024 resolution.
+    \item \textbf{Progressive performance improvement through dataset engineering.} Seven structured experiments demonstrated that dataset quality is the primary performance driver. The final EMA mAP50-95 of \textbf{0.2379} represents an $\approx$11\% improvement over the initial baseline of 0.2144, achieved entirely through data pipeline improvements.
+    \item \textbf{Key finding: patch size is the most impactful variable.} Scaling patches from 768 to 1024 pixels with 35\% overlap produced a $+10.3\%$ improvement in EMA mAP50-95 --- the single largest gain across all experiments.
+\end{itemize}
+
+\begin{resultbox}[Final Best Configuration --- Project Baseline]
+\begin{tabular}{ll}
+Model:                  & RF-DETR Medium (Apache 2.0) \\
+Patch size:             & 1024 $\times$ 1024 px \\
+Overlap:                & 35\% \\
+Augmentation:           & Horizontal Flip (crack patches only) \\
+Best EMA mAP50-95:      & \textbf{0.2379} \\
+Best mAP50:             & \textbf{0.4647} \\
+Checkpoint:             & \texttt{checkpoint\_best\_ema.pth} \\
+Total improvement:      & $\approx$11\% vs initial baseline \\
+\end{tabular}
+\end{resultbox}
+
+\section*{Future Scope}
+
+\subsection*{Near-term (Phase 1 Continuation)}
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{RF-DETR Large evaluation:} The current experiments used RF-DETR Medium. Evaluating the larger backbone variant on the same 1024 dataset is expected to yield a further $+0.01$--$0.03$ mAP50-95 improvement.
+    \item \textbf{Extended augmentation:} Vertical flip, 180° rotation, and brightness jitter augmentations are planned to improve model generalisation and delay overfitting beyond Epoch 10.
+    \item \textbf{50\% overlap experiment:} Further increasing overlap from 35\% to 50\% should reduce residual boundary truncation at the cost of larger dataset size and longer training time.
+    \item \textbf{Learning rate scheduling:} Implementing cosine annealing or warm-up scheduling is expected to improve convergence smoothness and reduce early overfitting.
+\end{itemize}
+
+\subsection*{Phase 2 --- Crack Length Measurement}
+
+The Phase 1 bounding box output serves as the entry point for the planned Phase 2 crack length measurement pipeline:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Instance Segmentation:} Fine-tune RF-DETR-Seg or Mask R-CNN to produce pixel-level crack masks from the detected bounding box regions.
+    \item \textbf{Morphological Skeletonisation:} Apply Zhang-Suen thinning to reduce the crack mask to a 1-pixel-wide skeleton.
+    \item \textbf{Centerline Extraction:} Use graph-based path tracing to extract an ordered set of centerline points along the crack.
+    \item \textbf{Length Estimation:} Compute the Euclidean path length in pixels and multiply by a pixel-to-mm calibration factor derived from the known casting dimensions, producing crack length in physical units (mm).
+\end{enumerate}
+
+\subsection*{Long-term Deployment}
+
+\begin{itemize}[leftmargin=2em]
+    \item Integration with Magna International's production line inspection systems for real-time HPDC casting quality control.
+    \item Development of a defect reporting dashboard with per-casting defect statistics and trend analysis.
+    \item Expansion to additional defect classes (porosity, shrinkage voids, flash) as annotated data becomes available.
+\end{itemize}

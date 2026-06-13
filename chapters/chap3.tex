@@ -1,0 +1,88 @@
+\chapter{PROPOSED SYSTEM}
+
+\justify
+
+The proposed system is an end-to-end deep learning pipeline for automated surface defect detection in HPDC aluminium castings. It addresses the fundamental challenge of detecting extremely small defect regions (crack area $<$ 0.1\% of image) in high-resolution industrial images, using a commercially deployable detection transformer architecture.
+
+\section{Description of Proposed System}
+\justify
+
+The proposed system operates as a two-stage pipeline:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Data Engineering Pipeline:} A sliding-window patch generator divides full 4096$\times$3000 HPDC images into 1024$\times$1024 overlapping patches (35\% overlap). Shapely-based polygon clipping ensures accurate annotation transfer to each patch. Dataset balancing and crack-focused augmentation (horizontal flip) are applied to improve training signal quality.
+
+    \item \textbf{RF-DETR Detection Model:} Each patch is processed by RF-DETR Medium, a Detection Transformer with a DINOv2 ViT-B backbone. The model is fine-tuned on the patch dataset and produces bounding box predictions with class labels (Crack / Cold Shut) and confidence scores, without requiring non-maximum suppression.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.6cm and 2cm,
+block/.style={rectangle, rounded corners=4pt, draw=magnaDark,
+fill=magnaLightGray, text width=5.5cm,
+minimum height=1cm, align=center, font=\small},
+arrow/.style={-Stealth, thick, color=magnaRed}]
+\node[block, fill=magnaRed!15, draw=magnaRed] (raw)
+    {\textbf{Raw HPDC Image}\\4096$\times$3000 px};
+\node[block, below=of raw] (patch)
+    {\textbf{Patch Generator}\\Sliding window, Shapely clipping\\1024$\times$1024 px, 35\% overlap};
+\node[block, below=of patch] (ds)
+    {\textbf{Dataset Engineering}\\Balancing + Crack Augmentation};
+\node[block, below=of ds] (train)
+    {\textbf{RF-DETR Medium Training}\\DINOv2 backbone, Deformable decoder};
+\node[block, fill=successGreen!15, draw=successGreen, below=of train] (infer)
+    {\textbf{Inference Output}\\Bounding boxes: Crack / Cold Shut};
+\draw[arrow] (raw)   -- (patch);
+\draw[arrow] (patch) -- (ds);
+\draw[arrow] (ds)    -- (train);
+\draw[arrow] (train) -- (infer);
+\end{tikzpicture}
+\caption{High-level overview of the proposed HPDC defect detection system pipeline.}
+\label{fig:system_overview}
+\end{figure}
+
+The Figure~\ref{fig:system_overview} shows the complete flow from raw casting image to defect detection output. The patch-based strategy is the core design decision that makes small-object crack detection feasible.
+
+\section{Description of Target Users}
+\justify
+
+The system is designed for two primary user groups:
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{Quality Control Engineers (Magna International):} End users who run inference on new casting images at the production line. They interact with the inference module via a simple command-line or GUI interface, receiving annotated images with bounding boxes highlighting detected defects.
+    \item \textbf{ML Engineers / Research Team:} Users who operate the data engineering pipeline and training framework. They configure hyperparameters, run training experiments, and monitor mAP metrics to iterate on model performance.
+\end{itemize}
+
+A secondary stakeholder is Magna International's quality management team, who consume the defect detection results for process improvement and compliance reporting.
+
+\section{Advantages / Applications of Proposed System}
+\justify
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{Automated and consistent inspection:} Removes inspector fatigue and subjective variability. Every casting is evaluated by the same model with reproducible confidence thresholds.
+    \item \textbf{Extreme small-object detection:} The patch-based 1024$\times$1024 strategy with 35\% overlap is specifically engineered for cracks occupying $<$ 0.1\% of image area --- a capability not achievable with full-image detection.
+    \item \textbf{Commercial deployment ready:} RF-DETR's Apache 2.0 licence permits unrestricted commercial use, deployment, and modification --- unlike YOLO-family models under AGPL-3.0.
+    \item \textbf{End-to-end without NMS:} RF-DETR produces detections through bipartite matching, eliminating the need to tune non-maximum suppression thresholds.
+    \item \textbf{Scalable to Phase 2:} The bounding box output of Phase 1 is a direct input to the planned Phase 2 segmentation and crack length measurement pipeline.
+    \item \textbf{Reproducible experimentation:} Every experiment is fully documented with dataset statistics, training configurations, and evaluation metrics, enabling systematic improvement.
+\end{itemize}
+
+\section{Scope (Boundary of Proposed System)}
+\justify
+
+\textbf{In scope (Phase 1):}
+\begin{itemize}[leftmargin=2em]
+    \item Detection and classification of Crack and Cold Shut defects via bounding boxes.
+    \item Patch-based sliding-window processing of HPDC images up to 4096$\times$3000 resolution.
+    \item Training, evaluation, and checkpoint management for RF-DETR Medium.
+    \item COCO-standard mAP evaluation on train/val/test splits.
+\end{itemize}
+
+\textbf{Out of scope (Phase 2, deferred):}
+\begin{itemize}[leftmargin=2em]
+    \item Pixel-level instance segmentation of crack regions.
+    \item Morphological skeletonisation and centerline extraction.
+    \item Crack length estimation in physical units (mm).
+    \item Integration with Magna's production line control systems.
+    \item Real-time video stream processing.
+\end{itemize}

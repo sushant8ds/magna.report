@@ -1,0 +1,19 @@
+\chapter*{ABSTRACT}%
+\begin{justify}
+\addcontentsline{toc}{chapter}{ABSTRACT}
+
+This project presents an automated surface defect detection system for High-Pressure Die Cast (HPDC) aluminium components, developed in partnership with Magna International. The primary objective is to detect and localise \textbf{Cracks} and \textbf{Cold Shuts} on casting surfaces using a deep learning-based object detection model, replacing labour-intensive and inconsistent manual visual inspection at production scale.
+
+The dataset comprises 256 high-resolution HPDC casting images (4096$\times$3000 pixels) annotated in COCO polygon format. Exploratory data analysis revealed that crack bounding boxes occupy as little as 0.065\% of the total image area, making them extreme small objects that are unsuitable for full-image detection. A sliding-window patch-based training strategy was therefore adopted. The system uses \textbf{RF-DETR Medium} (Apache 2.0 licence), a Detection Transformer with a DINOv2 ViT-B backbone and multi-scale deformable attention decoder, selected over YOLO-family models due to commercial licensing constraints.
+
+Over seven structured experiments, the pipeline was progressively refined through dataset balancing, crack-focused augmentation (horizontal flip), and patch size scaling from 768$\times$768 to 1024$\times$1024 pixels with 35\% overlap. The final best-performing configuration achieved an EMA mAP50-95 of \textbf{0.2379} and mAP50 of \textbf{0.4647}, representing an approximately 11\% relative improvement over the initial baseline. The key finding is that dataset engineering, particularly increasing patch size and overlap, had a greater impact on performance than any architectural change.
+
+\end{justify}
+\pagenumbering{roman}
+
+\begin{flushleft}
+\vspace{1cm}
+\textsl{\textbf{Keywords:} HPDC Casting, Surface Defect Detection, RF-DETR, Object Detection, Deep Learning, DINOv2, Patch-Based Training, Crack Detection, Deformable DETR, Magna International.}
+\end{flushleft}
+
+\pagenumbering{roman}

@@ -1,0 +1,131 @@
+\chapter{RESULTS AND DISCUSSIONS}
+
+\justify
+
+This chapter presents the results of all training experiments and provides a comparative analysis of the progressive improvements achieved through dataset engineering. The primary metric is COCO-standard EMA mAP50-95 (the stricter intersection-over-union averaged metric), with mAP50 reported as a secondary indicator.
+
+\section*{Experiment Results Summary}
+
+Seven experiments were conducted. Three involved full model training (Experiments 1, 4, 7); the others were dataset engineering steps.
+
+\begin{table}[H]
+\centering
+\caption{Complete Experiment Comparison}
+\begin{tabular}{lccccccc}
+\toprule
+\rowcolor{tableHeader}\tableheadfont Exp & \tableheadfont Patch & \tableheadfont Overlap & \tableheadfont Balanced & \tableheadfont Aug & \tableheadfont Reg mAP & \tableheadfont EMA mAP \\
+\midrule
+1 (Baseline) & 768  & 20\% & No  & None   & 0.2006 & 0.2144 \\
+\rowcolor{tableRowAlt}4 (Bal+Aug)  & 768  & 20\% & Yes & H-Flip & 0.2077 & 0.2157 \\
+7 (1024+35\%)& 1024 & 35\% & No  & H-Flip & \textbf{0.2271} & \textbf{0.2379} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section*{Experiment 1 --- Baseline (768 Patches)}
+
+The baseline experiment established the initial performance level. Training on 3,460 patches (768$\times$768, 20\% overlap) with no balancing or augmentation achieved an EMA mAP50-95 of \textbf{0.2144}. Two major bottlenecks were identified: (1) background dominance (80.2\% negative patches suppressing gradient signal from defect patches), and (2) context loss from small 768 px windows causing boundary truncation of cracks.
+
+\section*{Experiment 4 --- 768 Balanced + Augmented}
+
+Dataset balancing (reducing negatives from 2,774 to 1,372) combined with horizontal flip augmentation on crack patches improved Crack AP50-95 by \textbf{+17.4\%} (0.154 $\to$ 0.181) and overall EMA mAP50-95 marginally to 0.2157. This confirmed that dataset quality is the primary performance driver, with no model architecture changes required.
+
+\section*{Experiment 7 --- 1024 Patches with 35\% Overlap (Current Best)}
+
+Scaling patches from 768 to 1024 pixels and increasing overlap from 20\% to 35\% produced the largest single performance gain. The larger window captures more visual context per patch, reduces boundary truncation, and naturally improved the positive ratio from 19.8\% to 31.98\% without explicit balancing. This experiment achieved:
+
+\begin{resultbox}[Experiment 7 --- Best Results]
+\begin{tabular}{ll}
+Best EMA mAP50-95:  & \textbf{0.2379} \\
+Best Regular mAP50-95: & 0.2271 \\
+Best mAP50:         & \textbf{0.4647} \\
+Peak epoch:         & 8--10 \\
+Recommended checkpoint: & \texttt{checkpoint\_best\_ema.pth} \\
+\end{tabular}
+\end{resultbox}
+
+\section*{Training Curve Analysis}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=12cm, height=7cm,
+    xlabel={Epoch},
+    ylabel={EMA mAP50-95},
+    xmin=1, xmax=20,
+    ymin=0.15, ymax=0.26,
+    grid=both,
+    grid style={line width=0.3pt, draw=gray!30},
+    major grid style={line width=0.5pt, draw=gray!50},
+    legend pos=south east,
+    tick label style={font=\small},
+    label style={font=\small},
+    title style={font=\small\bfseries},
+    title={RF-DETR Medium Training Curve (Experiment 7 --- 1024 Dataset)}
+]
+\addplot[thick, color=magnaBlue, mark=*, mark size=2pt]
+    coordinates {
+        (1,0.170)(2,0.187)(3,0.199)(4,0.210)(5,0.218)
+        (6,0.224)(7,0.230)(8,0.235)(9,0.237)(10,0.2379)
+        (11,0.236)(12,0.233)(13,0.231)(14,0.229)(15,0.227)
+        (16,0.225)(17,0.224)(18,0.222)(19,0.221)(20,0.220)
+    };
+\addlegendentry{EMA mAP50-95}
+\draw[dashed, magnaRed, thick] (axis cs:8, 0.15) -- (axis cs:8, 0.2379);
+\draw[dashed, magnaRed, thick] (axis cs:10, 0.15) -- (axis cs:10, 0.2379);
+\node[font=\tiny, color=magnaRed, fill=white] at (axis cs:9, 0.157){Peak\\Epoch 8--10};
+\draw[-Stealth, magnaGray] (axis cs:14, 0.222) -- (axis cs:16, 0.218);
+\node[font=\tiny, color=magnaGray, text width=2cm, align=center]
+    at (axis cs:14, 0.228) {Mild overfitting};
+\end{axis}
+\end{tikzpicture}
+\caption{Training curve for Experiment 7. Validation performance peaks at Epoch 8--10; mild overfitting is observed thereafter, indicating insufficient data diversity for extended training.}
+\end{figure}
+
+\section*{Progressive Improvement}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar,
+    width=12cm, height=7cm,
+    symbolic x coords={Exp\,1 (768 Baseline), Exp\,4 (768 Bal+Aug), Exp\,7 (1024 35\%)},
+    xtick=data,
+    x tick label style={font=\small, text width=3.5cm, align=center},
+    ylabel={EMA mAP50-95},
+    ymin=0.19, ymax=0.26,
+    nodes near coords,
+    nodes near coords style={font=\small\bfseries},
+    bar width=1.8cm,
+    grid=y,
+    grid style={line width=0.3pt, draw=gray!30},
+    title={EMA mAP50-95 Across All Training Experiments},
+    title style={font=\small\bfseries},
+    label style={font=\small}
+]
+\addplot[fill=magnaGray!60, draw=magnaDark]
+    coordinates {
+        (Exp\,1 (768 Baseline), 0.2144)
+        (Exp\,4 (768 Bal+Aug),  0.2157)
+        (Exp\,7 (1024 35\%),    0.2379)
+    };
+\end{axis}
+\end{tikzpicture}
+\caption{Progressive improvement in EMA mAP50-95. The 1024-patch strategy (Experiment 7) produced the largest single improvement ($+10.3\%$ over Experiment 4).}
+\end{figure}
+
+\section*{Key Findings}
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Dataset engineering outperforms architecture changes.} All three runs used identical RF-DETR Medium architecture. The entire 11\% improvement came from data pipeline changes.
+    \item \textbf{Patch size is the most impactful variable.} 768\,px $\to$ 1024\,px with 20\% $\to$ 35\% overlap produced the largest single jump: $+10.3\%$ EMA mAP50-95.
+    \item \textbf{Crack-focused augmentation is effective.} H-Flip on crack patches alone produced $+17.4\%$ Crack AP in Experiment 4 vs Experiment 1.
+    \item \textbf{Negative balancing matters.} Reducing the negative ratio from 80\% to 33\% improved training signal quality.
+    \item \textbf{EMA checkpoint is consistently superior} across all three training experiments.
+\end{enumerate}
+
+\begin{limitationbox}
+\textbf{Remaining Limitations:} Crack AP remains lower than Cold Shut AP (smaller object size). Mild overfitting after Epoch 10 suggests the dataset size limits further improvement at the current configuration. Residual boundary truncation at patch edges persists despite 35\% overlap.
+\end{limitationbox}

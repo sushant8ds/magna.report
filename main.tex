@@ -1,0 +1,105 @@
+\documentclass[12pt,a4,oneeside]{report}
+\usepackage[top=.80in, bottom=.80in, left=1.1in, right=.80in, headsep=10pt ]{geometry}
+\usepackage{setspace}
+\usepackage[titletoc]{appendix}
+\usepackage{amsmath}    
+\usepackage{verbatim}   
+\usepackage{color}      
+ 
+\usepackage{hyperref}   
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+\usepackage{multirow}
+\usepackage{subfigure}
+\usepackage[T1]{fontenc}
+\usepackage{algorithm}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{url}
+\usepackage{array}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage[utf8]{inputenc}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{tabu}
+\usepackage{hhline}
+\usepackage{algpseudocode}
+\usepackage{ragged2e}
+% Additional packages for project content
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, decorations.pathreplacing}
+\usepackage{microtype}
+\usepackage{lmodern}
+\usepackage{parskip}
+\usepackage{mdframed}
+\usepackage{cleveref}
+% ─── Colours ────────────────────────────────────────────────────────────────
+\definecolor{magnaRed}{RGB}{200,16,46}
+\definecolor{magnaDark}{RGB}{35,31,32}
+\definecolor{magnaGray}{RGB}{100,100,100}
+\definecolor{magnaLightGray}{RGB}{245,245,245}
+\definecolor{magnaBlue}{RGB}{0,84,166}
+\definecolor{successGreen}{RGB}{0,128,0}
+\definecolor{warningOrange}{RGB}{204,102,0}
+\definecolor{tableHeader}{RGB}{200,16,46}
+\definecolor{tableRowAlt}{RGB}{248,240,242}
+\definecolor{codeBg}{RGB}{250,250,250}
+% ─── Table helpers ───────────────────────────────────────────────────────────
+\newcommand{\tableheadcolor}{\rowcolor{tableHeader}}
+\newcommand{\tableheadfont}{\color{white}\bfseries}
+% ─── Custom boxes ────────────────────────────────────────────────────────────
+\tcbuselibrary{skins, breakable, listings}
+\newtcolorbox{resultbox}[1][]{colback=magnaLightGray, colframe=magnaRed, title=#1, fonttitle=\bfseries\color{white},colbacktitle=magnaRed, boxrule=1pt, arc=4pt}
+\newtcolorbox{findingbox}{colback=blue!5, colframe=magnaBlue,boxrule=0.8pt, arc=4pt, left=6pt, right=6pt}
+\newtcolorbox{conclusionbox}{colback=green!5, colframe=successGreen,boxrule=0.8pt, arc=4pt, left=6pt, right=6pt}
+\newtcolorbox{limitationbox}{colback=orange!5, colframe=warningOrange,boxrule=0.8pt, arc=4pt, left=6pt, right=6pt}
+% ─── Listings ────────────────────────────────────────────────────────────────
+\lstset{backgroundcolor=\color{codeBg},basicstyle=\ttfamily\small,breaklines=true,frame=single,rulecolor=\color{magnaGray},captionpos=b}
+
+
+
+
+\titleformat{\chapter}[display]
+{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{18pt}{\Huge\centering}
+\titlespacing*{\chapter}{0pt}{-15pt}{20pt}
+
+\begin{document}
+\onehalfspacing \input{certificate.tex}
+\onehalfspacing \input{Certificate.tex}
+\onehalfspacing \input{abstract.tex} %write the abstract after completion of project
+\onehalfspacing \input{ack.tex}     %uncomment this for final report
+\pagenumbering{roman}
+\onehalfspacing \input{contents.tex}
+\onehalfspacing \input{Head_Footer.tex}
+\onehalfspacing \input{chapters/chap1.tex}
+\onehalfspacing \input{chapters/chap2.tex} 
+\onehalfspacing \input{chapters/chap3.tex}
+\onehalfspacing \input{chapters/chap4.tex}
+\onehalfspacing \input{chapters/chap5.tex}
+\onehalfspacing \input{chapters/chap6.tex}
+\onehalfspacing \input{chapters/chap7.tex}
+\onehalfspacing \input{chapters/chap8.tex}
+\bibliographystyle{unsrt}
+\renewcommand{\bibname}{REFERENCES}
+\bibliography{Bibliography}
+    \addcontentsline{toc}{chapter}{REFERENCES}
+        \begin{appendices}
+	\onehalfspacing \input{chapters/app.tex} 
+ 
+   \end{appendices}
+
+\end{document}
+
