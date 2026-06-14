@@ -2,14 +2,14 @@
 
 \justify
 
-This chapter describes the testing strategy for the HPDC Defect Detection System, structured at two levels: acceptance testing (end-to-end system performance against defined success criteria) and unit testing (validating individual pipeline modules in isolation).
+This chapter describes the testing strategy for the HPDC Defect Detection System at two levels: acceptance testing (end-to-end system performance against defined success criteria) and unit testing (validating individual pipeline modules in isolation).
 
 \section{Test Plan and Test Cases}
 
 \textbf{Types of testing performed:}
 \begin{itemize}[leftmargin=2em]
-    \item \textbf{Unit Testing:} Each pipeline module (PatchGenerator, DatasetBalancer, Augmentor, DefectDetector, CoordinateMapper) was tested independently with known inputs and verified outputs.
-    \item \textbf{Acceptance Testing:} End-to-end system performance was validated against the minimum mAP50-95 threshold and functional requirements defined in the SRS.
+    \item \textbf{Acceptance Testing:} End-to-end system validated against the minimum mAP50-95 threshold and functional requirements from the SRS.
+    \item \textbf{Unit Testing:} Each pipeline module tested independently with known inputs and verified outputs.
 \end{itemize}
 
 \subsection*{Acceptance Test Plan}
@@ -17,16 +17,22 @@ This chapter describes the testing strategy for the HPDC Defect Detection System
 \begin{table}[H]
 \centering
 \caption{Acceptance Test Plan}
-\begin{tabular}{lp{5cm}p{4cm}}
+\begin{tabular}{l p{6cm} p{4.5cm}}
 \toprule
-\rowcolor{tableHeader}\tableheadfont Test ID & \tableheadfont Objective & \tableheadfont Success Criterion \\
+\rowcolor{tableHeader}
+{\color{white}\bfseries Test ID} &
+{\color{white}\bfseries Objective} &
+{\color{white}\bfseries Success Criterion} \\
 \midrule
-ATP-01 & End-to-end detection on unseen HPDC images & Correct detection in defect-positive test images \\
-\rowcolor{tableRowAlt}ATP-02 & mAP50-95 on test split $\geq$ 0.20 & EMA mAP50-95 $\geq$ 0.20 \\
-ATP-03 & Per-class Crack AP on test set & Crack AP50-95 $>$ 0.10 \\
-\rowcolor{tableRowAlt}ATP-04 & EMA checkpoint outperforms regular & EMA mAP $>$ Regular mAP in all 3 training runs \\
-ATP-05 & No runtime errors on 50 test images & Zero exceptions during inference pass \\
-\rowcolor{tableRowAlt}ATP-06 & Licence compliance & All key libraries use Apache 2.0 / MIT / BSD \\
+ATP-01 & Detect defects on unseen HPDC images & Correct detection on defect-positive test images \\
+\rowcolor{tableRowAlt}
+ATP-02 & mAP50-95 on test split & EMA mAP50-95 $\geq$ 0.20 \\
+ATP-03 & Per-class Crack AP & Crack AP50-95 $>$ 0.10 \\
+\rowcolor{tableRowAlt}
+ATP-04 & EMA checkpoint outperforms regular & EMA mAP $>$ Regular mAP in all training runs \\
+ATP-05 & No runtime errors & Zero exceptions on 50 test images \\
+\rowcolor{tableRowAlt}
+ATP-06 & Licence compliance & All libraries use Apache 2.0 / MIT / BSD \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -36,14 +42,20 @@ ATP-05 & No runtime errors on 50 test images & Zero exceptions during inference 
 \begin{table}[H]
 \centering
 \caption{Acceptance Test Cases}
-\begin{tabular}{llp{4cm}p{4cm}}
+\begin{tabular}{l p{3.5cm} p{4cm} p{4cm}}
 \toprule
-\rowcolor{tableHeader}\tableheadfont TC ID & \tableheadfont Test & \tableheadfont Input & \tableheadfont Expected Output \\
+\rowcolor{tableHeader}
+{\color{white}\bfseries TC ID} &
+{\color{white}\bfseries Test} &
+{\color{white}\bfseries Input} &
+{\color{white}\bfseries Expected Output} \\
 \midrule
-ATC-01 & Detection on defect image & HPDC image with ground-truth crack & $\geq 1$ Crack bbox, conf $>$ 0.3 \\
-\rowcolor{tableRowAlt}ATC-02 & Detection on clean image & HPDC image with no defects & 0 detections above threshold \\
+ATC-01 & Detect defects & HPDC image with ground-truth crack & $\geq 1$ crack bbox, conf $>$ 0.3 \\
+\rowcolor{tableRowAlt}
+ATC-02 & No false positives & Clean HPDC image (no defects) & 0 detections above threshold \\
 ATC-03 & mAP evaluation & Test split (495 patches) & EMA mAP50-95 $\geq$ 0.20 \\
-\rowcolor{tableRowAlt}ATC-04 & EMA vs Regular & Same test split & EMA $>$ Regular checkpoint score \\
+\rowcolor{tableRowAlt}
+ATC-04 & EMA vs Regular & Same test split & EMA score $>$ Regular score \\
 ATC-05 & Output format & Any valid PNG HPDC image & Annotated PNG with bounding boxes \\
 \bottomrule
 \end{tabular}
@@ -54,16 +66,22 @@ ATC-05 & Output format & Any valid PNG HPDC image & Annotated PNG with bounding 
 \begin{table}[H]
 \centering
 \caption{Unit Test Plan}
-\begin{tabular}{lp{4.5cm}p{4.5cm}}
+\begin{tabular}{l p{3.5cm} p{7cm}}
 \toprule
-\rowcolor{tableHeader}\tableheadfont Test ID & \tableheadfont Module & \tableheadfont Test Focus \\
+\rowcolor{tableHeader}
+{\color{white}\bfseries Test ID} &
+{\color{white}\bfseries Module} &
+{\color{white}\bfseries Test Focus} \\
 \midrule
-UTP-01 & PatchGenerator & Correct stride and patch count for given image size \\
-\rowcolor{tableRowAlt}UTP-02 & PatchGenerator & Polygon clipping produces no negative bbox coordinates \\
-UTP-03 & DatasetBalancer & Output pos:neg ratio $\leq$ 1:2 after balancing \\
-\rowcolor{tableRowAlt}UTP-04 & Augmentor & Flipped bbox remains within patch boundary \\
-UTP-05 & DefectDetector & Model output shape: $N \times 6$ with no NaN values \\
-\rowcolor{tableRowAlt}UTP-06 & CoordinateMapper & Patch-relative bbox correctly offset to full-image coords \\
+UTP-01 & PatchGenerator & Correct stride and patch count for given image size and overlap \\
+\rowcolor{tableRowAlt}
+UTP-02 & PatchGenerator & Polygon clipping produces no out-of-bounds bbox coordinates \\
+UTP-03 & DatasetBalancer & Output pos:neg ratio $\leq$ 1:2 after downsampling \\
+\rowcolor{tableRowAlt}
+UTP-04 & Augmentor & Flipped bbox coordinates remain within patch boundary \\
+UTP-05 & DefectDetector & Model output shape: $N \times 6$, no NaN values \\
+\rowcolor{tableRowAlt}
+UTP-06 & CoordinateMapper & Patch-relative bbox correctly offset to full-image coordinates \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -73,20 +91,27 @@ UTP-05 & DefectDetector & Model output shape: $N \times 6$ with no NaN values \\
 \begin{table}[H]
 \centering
 \caption{Unit Test Cases}
-\begin{tabular}{llp{4cm}l}
+\begin{tabular}{l p{3.5cm} p{4cm} p{3cm}}
 \toprule
-\rowcolor{tableHeader}\tableheadfont TC ID & \tableheadfont Function & \tableheadfont Input & \tableheadfont Expected Result \\
+\rowcolor{tableHeader}
+{\color{white}\bfseries TC ID} &
+{\color{white}\bfseries Function} &
+{\color{white}\bfseries Input} &
+{\color{white}\bfseries Expected Result} \\
 \midrule
-UTC-01 & \texttt{generate\_patches} & $4096\times3000$, patch=1024, overlap=0.35 & 30 patches \\
-\rowcolor{tableRowAlt}UTC-02 & \texttt{clip\_polygons} & Polygon straddling boundary & bbox within $[0, 1024]$ \\
-UTC-03 & \texttt{balance(patches)} & 686 pos, 2774 neg & $\leq$ 1372 neg retained \\
-\rowcolor{tableRowAlt}UTC-04 & \texttt{flip\_bbox} & $(100,50,200,80)$, $W=1024$ & $(724,50,200,80)$ \\
+UTC-01 & \texttt{generate\_patches} & $4096\times3000$ img, patch=1024, overlap=0.35 & 30 patches generated \\
+\rowcolor{tableRowAlt}
+UTC-02 & \texttt{clip\_polygons} & Polygon straddling patch boundary & bbox within $[0,\,1024]$ \\
+UTC-03 & \texttt{balance(patches)} & 686 positive, 2774 negative & $\leq$1372 negatives retained \\
+\rowcolor{tableRowAlt}
+UTC-04 & \texttt{flip\_bbox} & bbox $(100,50,200,80)$, $W=1024$ & $(724,50,200,80)$ \\
 UTC-05 & \texttt{model.forward} & $1024\times1024$ tensor & Shape $(N,6)$, no NaN \\
-\rowcolor{tableRowAlt}UTC-06 & \texttt{offset\_bbox} & $(10,20,100,80)$, offset $(665,0)$ & $(675,20,100,80)$ \\
+\rowcolor{tableRowAlt}
+UTC-06 & \texttt{offset\_bbox} & bbox $(10,20,100,80)$, offset $(665,0)$ & $(675,20,100,80)$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{findingbox}
-\textbf{Testing Outcome:} All unit tests passed. Acceptance test ATP-02 was met with EMA mAP50-95 = 0.2379 on the Experiment 7 test split. EMA checkpoint consistently outperformed the regular checkpoint in all three training experiments (ATP-04 confirmed).
+\textbf{Testing Outcome:} All unit tests passed. Acceptance test ATP-02 was satisfied with EMA mAP50-95 = 0.2379 on the Experiment 7 test split. The EMA checkpoint outperformed the regular checkpoint in all three training experiments, confirming ATP-04.
 \end{findingbox}

@@ -114,18 +114,22 @@ def generate_patches(image, annotations,
 def balance_and_augment(patches):
     pos = [p for p in patches if p.annotations]
     neg = [p for p in patches if not p.annotations]
-    neg = random.sample(neg, min(len(neg), 2 * len(pos)))
+    neg = random.sample(neg, min(len(neg), 2*len(pos)))
     augmented = []
     for patch in pos:
         if has_crack(patch):
-            flipped_img  = cv2.flip(patch.image, 1)
-            flipped_anns = [flip_bbox(a, patch.width) for a in patch.annotations]
-            augmented.append(Patch(flipped_img, flipped_anns))
+            flipped_img = cv2.flip(patch.image, 1)
+            flipped_anns = [
+                flip_bbox(a, patch.width)
+                for a in patch.annotations]
+            augmented.append(
+                Patch(flipped_img, flipped_anns))
     return pos + neg + augmented
 
 def flip_bbox(ann, W):
     x, y, w, h = ann['bbox']
-    return {'bbox': [W - x - w, y, w, h], 'category_id': ann['category_id']}
+    return {'bbox': [W-x-w, y, w, h],
+            'category_id': ann['category_id']}
 \end{lstlisting}
 
 \subsection{Module 4: RF-DETR Training Module}
@@ -167,13 +171,15 @@ def detect(image_path, checkpoint, conf_threshold=0.3):
     model.load_state_dict(torch.load(checkpoint))
     model.eval()
     image   = load_image(image_path)
-    patches = generate_patches(image, patch_size=1024, overlap=0.35)
+    patches = generate_patches(
+        image, patch_size=1024, overlap=0.35)
     results = []
     for (patch, x_off, y_off) in patches:
         dets = model(patch)
         for det in dets:
             if det.confidence > conf_threshold:
-                det.bbox = offset_bbox(det.bbox, x_off, y_off)
+                det.bbox = offset_bbox(
+                    det.bbox, x_off, y_off)
                 results.append(det)
     return annotate_image(image, results)
 \end{lstlisting}

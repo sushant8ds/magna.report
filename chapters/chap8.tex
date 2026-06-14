@@ -1,140 +1,116 @@
-\chapter{RESULTS \& DISCUSSIONS}
+\chapter{RESULTS AND DISCUSSIONS}
 
 \justify
 
-This chapter presents the results of all training experiments and provides a comparative analysis of the progressive improvements achieved through dataset engineering. The primary metric is COCO-standard EMA mAP50-95.
+This chapter presents the results of all training experiments and a comparative analysis of performance improvements achieved through dataset engineering. The primary metric is COCO-standard EMA mAP50-95 (averaged over IoU thresholds 0.50--0.95).
 
 \begin{table}[H]
 \centering
 \caption{Complete Experiment Comparison}
-\begin{tabular}{lccccccc}
+\begin{tabular}{lcccccc}
 \toprule
-\rowcolor{tableHeader}\tableheadfont Exp & \tableheadfont Patch & \tableheadfont Overlap & \tableheadfont Balanced & \tableheadfont Aug & \tableheadfont Reg mAP & \tableheadfont EMA mAP \\
+\rowcolor{tableHeader}
+{\color{white}\bfseries Exp} &
+{\color{white}\bfseries Patch} &
+{\color{white}\bfseries Overlap} &
+{\color{white}\bfseries Balanced} &
+{\color{white}\bfseries Aug} &
+{\color{white}\bfseries Reg mAP} &
+{\color{white}\bfseries EMA mAP} \\
 \midrule
-1 (Baseline) & 768  & 20\% & No  & None   & 0.2006 & 0.2144 \\
-\rowcolor{tableRowAlt}4 (Bal+Aug)  & 768  & 20\% & Yes & H-Flip & 0.2077 & 0.2157 \\
-7 (1024+35\%)& 1024 & 35\% & No  & H-Flip & \textbf{0.2271} & \textbf{0.2379} \\
+1 -- Baseline  & 768  & 20\% & No  & None   & 0.2006 & 0.2144 \\
+\rowcolor{tableRowAlt}
+4 -- Bal+Aug   & 768  & 20\% & Yes & H-Flip & 0.2077 & 0.2157 \\
+7 -- 1024+35\% & 1024 & 35\% & No  & H-Flip & \textbf{0.2271} & \textbf{0.2379} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Experiment 1 --- Baseline (768 Patches):} Training on 3,460 patches with no balancing or augmentation achieved EMA mAP50-95 = 0.2144. Bottlenecks: 80.2\% negative patches and boundary truncation of cracks.
+\section*{Experiment 1 --- Baseline (768 px Patches)}
 
-\textbf{Experiment 4 --- 768 Balanced + Augmented:} Dataset balancing + horizontal flip on crack patches improved Crack AP by $+$17.4\% (0.154 $\to$ 0.181) and overall EMA mAP to 0.2157, confirming dataset quality as the primary driver.
+Training on 3,460 unbalanced patches (768$\times$768, 20\% overlap) with no augmentation established the reference level. EMA mAP50-95 reached \textbf{0.2144}. Key bottlenecks: 80.2\% of patches contained no defects (severe class imbalance), and small crack annotations were frequently truncated at patch boundaries due to low overlap.
 
-\textbf{Experiment 7 --- 1024 Patches with 35\% Overlap (Current Best):} Scaling patches to 1024 px with 35\% overlap produced the largest gain. The positive ratio improved naturally to 31.98\% without explicit balancing.
+\section*{Experiment 4 --- 768 px Balanced and Augmented}
+
+Downsampling negatives to a 1:2 ratio and applying horizontal flip to crack patches improved Crack AP50-95 by \textbf{+17.4\%} (0.154 $\to$ 0.181) and overall EMA mAP to \textbf{0.2157}. This confirmed that dataset quality is the primary performance driver, not model architecture.
+
+\section*{Experiment 7 --- 1024 px Patches with 35\% Overlap (Current Best)}
+
+Increasing patch size to 1024$\times$1024 and overlap to 35\% provided each patch with more visual context and reduced boundary truncation. The positive patch ratio improved naturally to 31.98\% without explicit balancing.
 
 \begin{resultbox}[Experiment 7 --- Best Results]
 \begin{tabular}{ll}
 Best EMA mAP50-95:     & \textbf{0.2379} \\
 Best Regular mAP50-95: & 0.2271 \\
 Best mAP50:            & \textbf{0.4647} \\
-Peak epoch:            & 8--10 \\
+Peak performance:      & Epoch 8--10 \\
 Checkpoint:            & \texttt{checkpoint\_best\_ema.pth} \\
 \end{tabular}
 \end{resultbox}
 
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-    width=12cm, height=7cm,
-    xlabel={Epoch}, ylabel={EMA mAP50-95},
-    xmin=1, xmax=20, ymin=0.15, ymax=0.26,
-    grid=major,
-    grid style={line width=0.4pt, draw=gray!40},
-    legend pos=south east,
-    tick label style={font=\small},
-    label style={font=\small},
-    title style={font=\small\bfseries},
-    title={RF-DETR Medium Training Curve (Experiment 7)}
-]
-\addplot[thick, color=magnaBlue, mark=*, mark size=2pt]
-    coordinates {
-        (1,0.170)(2,0.187)(3,0.199)(4,0.210)(5,0.218)
-        (6,0.224)(7,0.230)(8,0.235)(9,0.237)(10,0.2379)
-        (11,0.236)(12,0.233)(13,0.231)(14,0.229)(15,0.227)
-        (16,0.225)(17,0.224)(18,0.222)(19,0.221)(20,0.220)
-    };
-\addlegendentry{EMA mAP50-95}
-\addplot[dashed, magnaRed, thick, forget plot] coordinates {(8,0.15)(8,0.2379)};
-\addplot[dashed, magnaRed, thick, forget plot] coordinates {(10,0.15)(10,0.2379)};
-\node[font=\tiny, color=magnaRed, fill=white] at (axis cs:9, 0.158){Peak\\Ep.\ 8--10};
-\node[font=\tiny, color=magnaGray] at (axis cs:15, 0.221){overfitting};
-\end{axis}
-\end{tikzpicture}
-\caption{Training curve for Experiment 7. Validation mAP peaks at Epoch 8--10; mild overfitting observed thereafter.}
-\end{figure}
+\section*{Training Curve Summary (Experiment 7)}
 
-\begin{figure}[H]
+\begin{table}[H]
 \centering
-\begin{tikzpicture}
-\begin{axis}[
-    ybar, width=12cm, height=7cm,
-    symbolic x coords={Exp\,1 (768 Baseline), Exp\,4 (768 Bal+Aug), Exp\,7 (1024 35\%)},
-    xtick=data,
-    x tick label style={font=\small, text width=3.5cm, align=center},
-    ylabel={EMA mAP50-95},
-    ymin=0.19, ymax=0.26,
-    nodes near coords,
-    nodes near coords style={font=\small\bfseries},
-    bar width=1.8cm,
-    ymajorgrids=true,
-    grid style={line width=0.3pt, draw=gray!30},
-    title={EMA mAP50-95 Across All Training Experiments},
-    title style={font=\small\bfseries},
-    label style={font=\small}
-]
-\addplot[fill=magnaGray!60, draw=magnaDark]
-    coordinates {
-        (Exp\,1 (768 Baseline), 0.2144)
-        (Exp\,4 (768 Bal+Aug),  0.2157)
-        (Exp\,7 (1024 35\%),    0.2379)
-    };
-\end{axis}
-\end{tikzpicture}
-\caption{Progressive improvement in EMA mAP50-95 across three training experiments.}
-\end{figure}
+\caption{EMA mAP50-95 at Key Training Epochs (Experiment 7)}
+\begin{tabular}{ccccccc}
+\toprule
+\rowcolor{tableHeader}
+{\color{white}\bfseries Epoch} &
+{\color{white}\bfseries 1} &
+{\color{white}\bfseries 5} &
+{\color{white}\bfseries 8} &
+{\color{white}\bfseries 10 (peak)} &
+{\color{white}\bfseries 15} &
+{\color{white}\bfseries 20} \\
+\midrule
+EMA mAP50-95 & 0.170 & 0.218 & 0.235 & \textbf{0.2379} & 0.227 & 0.220 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\textbf{Key findings:}
+Performance peaks at Epoch 8--10 and then mildly declines, indicating the dataset size limits generalisation beyond this point. The EMA checkpoint saved at peak epoch is recommended for deployment.
+
+\section*{Key Findings}
+
 \begin{enumerate}[leftmargin=2em]
-    \item Dataset engineering outperforms architecture changes --- all improvement came from data pipeline changes with identical model architecture.
-    \item Patch size is the most impactful variable: 768 $\to$ 1024 px with 35\% overlap gave the largest single jump ($+$10.3\% EMA mAP50-95).
-    \item Crack-focused augmentation alone gave $+$17.4\% Crack AP in Experiment 4.
-    \item EMA checkpoint is consistently superior across all experiments.
+    \item \textbf{Dataset engineering is the dominant factor.} All three training runs used identical RF-DETR Medium architecture. The full 11\% improvement came entirely from data pipeline changes (patch size, overlap, balancing, augmentation).
+    \item \textbf{Patch size is the single most impactful variable.} Scaling from 768 to 1024 px with 35\% overlap produced a \textbf{+10.3\%} relative improvement in EMA mAP50-95, the largest single gain observed.
+    \item \textbf{Crack-specific augmentation is effective.} Horizontal flip on crack patches alone gave \textbf{+17.4\%} Crack AP in Experiment 4 vs.\ Experiment 1.
+    \item \textbf{EMA checkpoint is consistently superior.} In all three experiments the EMA checkpoint outperformed the regular checkpoint, confirming that EMA tracking is essential for fine-tuning on small datasets.
 \end{enumerate}
 
 \chapter{CONCLUSIONS AND FUTURE SCOPE}
 
-\justify
-
 \section*{Conclusions}
 
-This project successfully developed and validated an automated deep learning pipeline for surface defect detection in HPDC aluminium castings. The following were achieved in Phase 1:
+This project successfully designed, implemented, and validated an automated deep learning pipeline for surface defect detection in HPDC aluminium castings, developed in partnership with Magna International. The system addresses a real industrial need: existing EOL inspection methods (human visual inspection and periodic X-Ray) are either unreliable or too slow for 100\% production coverage.
+
+The following outcomes were achieved:
 
 \begin{itemize}[leftmargin=2em]
-    \item RF-DETR validated as a commercially deployable alternative (Apache 2.0) to YOLO-family models.
-    \item A patch-based training pipeline converting 256 full images into 4,184 training patches at 1024$\times$1024 resolution.
-    \item EMA mAP50-95 of \textbf{0.2379} --- an $\approx$11\% improvement over baseline --- achieved entirely through dataset engineering.
-    \item Patch size scaling (768 $\to$ 1024 px, 35\% overlap) identified as the single most impactful improvement.
+    \item \textbf{RF-DETR adopted as a commercially compliant model.} YOLOv8 and YOLO11, initially evaluated, were excluded due to their AGPL-3.0 licence incompatibility with Magna's proprietary production systems. RF-DETR (Apache 2.0) was validated as an equivalent-performance alternative with no commercial deployment restrictions.
+    \item \textbf{Patch-based pipeline for extreme small-object detection.} A sliding-window generator converts 256 full HPDC images into 4,184 training patches (1024$\times$1024, 35\% overlap) with Shapely polygon-aware annotation clipping, enabling detection of cracks occupying less than 0.1\% of image area.
+    \item \textbf{EMA mAP50-95 of 0.2379 achieved.} This represents an approximately 11\% improvement over the unoptimised baseline of 0.2144, achieved entirely through systematic dataset engineering.
+    \item \textbf{Patch size identified as the dominant variable.} Scaling from 768 to 1024 px with 35\% overlap produced the largest single performance gain across all experiments.
 \end{itemize}
 
 \begin{resultbox}[Final Best Configuration]
 \begin{tabular}{ll}
-Model:              & RF-DETR Medium (Apache 2.0) \\
-Patch size:         & 1024 $\times$ 1024 px, 35\% overlap \\
-Augmentation:       & Horizontal Flip (crack patches only) \\
-EMA mAP50-95:       & \textbf{0.2379} \quad mAP50: \textbf{0.4647} \\
-Checkpoint:         & \texttt{checkpoint\_best\_ema.pth} \\
+Model:          & RF-DETR Medium (Apache 2.0) \\
+Patch size:     & 1024 $\times$ 1024 px, 35\% overlap \\
+Augmentation:   & Horizontal Flip (crack patches only) \\
+EMA mAP50-95:   & \textbf{0.2379} \quad|\quad mAP50: \textbf{0.4647} \\
+Checkpoint:     & \texttt{checkpoint\_best\_ema.pth} \\
 \end{tabular}
 \end{resultbox}
 
 \section*{Future Scope}
 
 \begin{itemize}[leftmargin=2em]
-    \item \textbf{RF-DETR Large:} Evaluate larger backbone on the same 1024 dataset, expected $+$0.01--0.03 mAP gain.
-    \item \textbf{Extended augmentation:} Vertical flip, 180° rotation, brightness jitter to delay overfitting.
-    \item \textbf{50\% overlap:} Further reduce boundary truncation.
-    \item \textbf{Phase 2 --- Crack Length Measurement:} Instance segmentation $\to$ Zhang-Suen skeletonisation $\to$ centerline extraction $\to$ crack length in mm.
-    \item \textbf{Production integration:} Embed inference into Magna's production line quality control systems with a defect reporting dashboard.
+    \item \textbf{RF-DETR Large:} Evaluate the larger DINOv2 ViT-L backbone on the same 1024 dataset. Expected gain: $+$0.01--0.03 mAP50-95.
+    \item \textbf{Extended augmentation:} Add vertical flip, 90°/180° rotation, and brightness jitter to improve generalisation and delay overfitting beyond Epoch 10.
+    \item \textbf{Increased overlap (50\%):} Further reduce boundary truncation for very long crack annotations.
+    \item \textbf{Phase 2 --- Crack Length Measurement:} Extend the pipeline to pixel-level segmentation, Zhang-Suen morphological skeletonisation, graph-based centerline extraction, and crack length estimation in physical units (mm) using a pixel-to-mm calibration factor.
+    \item \textbf{Production integration:} Deploy the trained inference module on Magna's EOL inspection station with a real-time defect reporting dashboard, enabling 100\% automated surface inspection coverage.
 \end{itemize}
