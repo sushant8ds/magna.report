@@ -2,18 +2,18 @@
 \begin{justify}
 \addcontentsline{toc}{chapter}{ABSTRACT}
 
-This project presents an automated surface defect detection system for High-Pressure Die Cast (HPDC) aluminium components, developed in partnership with Magna International. The primary objective is to detect and localise \textbf{Cracks} and \textbf{Cold Shuts} on casting surfaces using a deep learning-based object detection model, replacing labour-intensive and inconsistent manual visual inspection at production scale.
+High-Pressure Die Casting (HPDC) is widely used in automotive manufacturing to produce structural aluminium components at high production rates. Surface defects --- particularly \textbf{Cracks} and \textbf{Cold Shuts} --- pose structural safety risks and must be reliably identified before parts leave the production line. Current end-of-line (EOL) quality control at Magna International relies on human visual inspection, which is prone to fatigue-induced inconsistency, and X-Ray analysis, which is limited to three parts per shift and is prohibitively slow for 100\% inspection coverage. This project addresses that gap by developing an automated, commercially deployable deep learning pipeline for surface defect detection.
 
-The dataset comprises 256 high-resolution HPDC casting images (4096$\times$3000 pixels) annotated in COCO polygon format. Exploratory data analysis revealed that crack bounding boxes occupy as little as 0.065\% of the total image area, making them extreme small objects that are unsuitable for full-image detection. A sliding-window patch-based training strategy was therefore adopted. The system uses \textbf{RF-DETR Medium} (Apache 2.0 licence), a Detection Transformer with a DINOv2 ViT-B backbone and multi-scale deformable attention decoder, selected over YOLO-family models due to commercial licensing constraints.
+The dataset comprises 256 high-resolution HPDC casting images (4096$\times$3000 pixels) annotated in COCO polygon format, provided by Magna International. Exploratory data analysis established that crack bounding boxes occupy as little as 0.065\% of the total image area, placing cracks firmly in the extreme small-object regime where conventional full-image detectors fail. A patch-based sliding-window pipeline was therefore designed to generate 1024$\times$1024 overlapping patches (35\% overlap) from each full image, with Shapely polygon-aware annotation clipping to preserve accurate ground-truth boundaries.
 
-Over seven structured experiments, the pipeline was progressively refined through dataset balancing, crack-focused augmentation (horizontal flip), and patch size scaling from 768$\times$768 to 1024$\times$1024 pixels with 35\% overlap. The final best-performing configuration achieved an EMA mAP50-95 of \textbf{0.2379} and mAP50 of \textbf{0.4647}, representing an approximately 11\% relative improvement over the initial baseline. The key finding is that dataset engineering, particularly increasing patch size and overlap, had a greater impact on performance than any architectural change.
+The initial model candidate was YOLOv8, but its AGPL-3.0 licence is incompatible with commercial deployment at Magna International, as it requires derivative products to be open-sourced. The team therefore adopted \textbf{RF-DETR Medium} (Apache 2.0), a Detection Transformer with a DINOv2 ViT-B backbone and multi-scale deformable attention decoder, which permits unrestricted commercial use. Seven structured experiments progressively refined the pipeline through dataset balancing (1:2 positive:negative ratio), crack-focused horizontal-flip augmentation, and patch size scaling. The final configuration achieved an EMA mAP50-95 of \textbf{0.2379} and mAP50 of \textbf{0.4647}, representing an approximately 11\% relative improvement over the baseline. Dataset engineering --- particularly increasing patch size from 768 to 1024 pixels with 35\% overlap --- proved to be the dominant performance driver.
 
 \end{justify}
 \pagenumbering{roman}
 
 \begin{flushleft}
 \vspace{1cm}
-\textsl{\textbf{Keywords:} HPDC Casting, Surface Defect Detection, RF-DETR, Object Detection, Deep Learning, DINOv2, Patch-Based Training, Crack Detection, Deformable DETR, Magna International.}
+\textsl{\textbf{Keywords:} HPDC casting, RF-DETR, object detection, crack detection, deep learning, DINOv2, patch-based training, Deformable DETR, COCO mAP, Magna International.}
 \end{flushleft}
 
 \pagenumbering{roman}

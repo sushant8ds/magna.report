@@ -2,6 +2,60 @@
 
 \justify
 
-The manufacturing industry demands zero-defect quality assurance, particularly in safety-critical automotive components. High-Pressure Die Casting (HPDC) is a widely used process for producing complex aluminium structural parts at high production rates. Despite its efficiency, HPDC introduces surface and sub-surface defects --- most critically \textbf{Cracks} and \textbf{Cold Shuts} --- that pose structural safety risks if left undetected. Manual visual inspection is labour-intensive, subjective, and impractical at production scale.
+\section{Preamble}
 
-This project, developed in partnership with Magna International, builds an automated deep learning pipeline to detect and localise surface defects in HPDC castings using RF-DETR (Roboflow Detection Transformer), a state-of-the-art object detection model released under the Apache 2.0 licence. The system is specifically engineered to handle the extreme small-object detection challenge inherent to crack inspection, where crack bounding boxes occupy less than 0.1\% of the total image area.
+High-Pressure Die Casting (HPDC) is one of the dominant manufacturing processes for producing complex, near-net-shape aluminium components at high production rates. Molten aluminium is injected into hardened steel dies at pressures up to 1500 bar, producing parts with tight dimensional tolerances and good surface finish in cycle times of under a minute. The automotive sector relies heavily on HPDC for structural and powertrain components including engine housings, transmission cases, and structural brackets. Magna International, one of the world's largest automotive suppliers, operates large-scale HPDC production lines where hundreds of castings are produced every shift.
+
+Despite its efficiency, the HPDC process is susceptible to several classes of surface and sub-surface defects. The most safety-critical are \textbf{Cracks} --- linear fractures that form during solidification or ejection and can propagate under service loads, leading to part failure. \textbf{Cold Shuts} (also called cold shots) arise when two metal flow fronts meet before fusing, creating a visible seam that weakens the part. \textbf{Heat checking} produces a fine network of surface cracks caused by thermal cycling of the die; unlike structural cracks, heat checking patterns are generally cosmetic and considered acceptable (OK) by Original Equipment Manufacturer (OEM) standards. \textbf{Porosity} introduces sub-surface voids that reduce fatigue life. Distinguishing NOK (not OK) structural cracks from OK heat-checking patterns is one of the core challenges in automated inspection.
+
+Current end-of-line (EOL) quality control at Magna relies on two methods: manual visual inspection by trained operators, and periodic X-Ray analysis. This project, developed in direct partnership with Magna International, addresses the need for an automated, inline NDT alternative by building a deep learning-based surface defect detection system using the RF-DETR object detection model.
+
+\section{Motivation}
+
+The motivation for automating defect detection at Magna International is rooted in safety criticality, production scale, and the fundamental limitations of existing inspection methods.
+
+\begin{itemize}[leftmargin=2em]
+    \item \textbf{Safety criticality:} HPDC structural parts are used in load-bearing automotive applications. Undetected surface cracks can propagate under mechanical and thermal stress, ultimately causing part failure. OEM specifications mandate zero tolerance for cracks above a defined size threshold.
+
+    \item \textbf{Production scale:} Inspecting every casting manually is impractical when several hundred parts are produced per shift. Human inspectors are subject to fatigue-induced inconsistency, and inspection accuracy degrades over time. Automated vision-based systems provide reproducible, fatigue-free inspection at machine speed.
+
+    \item \textbf{Inadequacy of current methods:} Manual visual inspection is not 100\% reliable --- small or faint cracks on complex three-dimensional geometries are easily missed. X-Ray analysis, while highly reliable, is limited to approximately three parts per shift per machine due to cycle time constraints, is expensive to operate, and cannot provide 100\% coverage. Response time from X-Ray to production feedback is long, allowing defective batches to accumulate before corrective action is taken.
+
+    \item \textbf{Need for automated NDT:} There is therefore a compelling industrial requirement for an alternative or parallel non-destructive testing (NDT) method capable of automated EOL inspection of all produced parts. A vision-based system operating on surface images can achieve full-coverage, low-latency defect flagging without the cost and cycle-time constraints of X-Ray.
+
+    \item \textbf{Commercial deployment constraints:} Any model adopted by Magna must be deployable on production line hardware under a commercially permissive open-source licence. AGPL-3.0 licensed software (which includes the YOLO family) requires derivative commercial products to be released as open source, making it legally incompatible with Magna's deployment environment.
+\end{itemize}
+
+\section{Literature Study}
+
+The problem of automated defect detection in industrial manufacturing has a rich prior literature spanning three broad phases: classical machine vision, convolutional neural networks, and transformer-based detection.
+
+\textbf{Classical and hand-crafted feature methods:} Early systems for casting defect detection relied on manually engineered descriptors. Histogram of Oriented Gradients (HOG), Local Binary Patterns (LBP), and Gabor filter responses were computed from greyscale images and fed into Support Vector Machines (SVM) or AdaBoost classifiers \cite{xu2020}. Xu et al.\ \cite{xu2020} demonstrated relief-algorithm and AdaBoost-SVM combinations for internal casting crack detection. While effective in controlled conditions, these methods require careful feature engineering for each defect type and deteriorate rapidly as surface complexity or lighting variability increases.
+
+\textbf{CNN-based detection and YOLO family:} Deep convolutional neural networks eliminated the need for hand-crafted features by learning hierarchical representations from labelled data. VGG \cite{simonyan2014} and ResNet \cite{he2016} became standard backbone architectures for industrial inspection tasks. The YOLO (You Only Look Once) family \cite{redmon2016, bochkovskiy2020, jocher2022} brought real-time single-stage detection, and YOLOv8 and YOLO11 were evaluated early in this project for their strong out-of-the-box performance. However, both are released under the AGPL-3.0 licence, which requires any commercial product incorporating YOLO components to release its derivative source code openly --- a condition incompatible with Magna International's proprietary production system. This licence constraint necessitated finding a commercially viable alternative.
+
+\textbf{DETR lineage and RF-DETR:} Carion et al.\ \cite{carion2020} proposed DETR (Detection Transformer), which reformulated object detection as a direct set-prediction problem using a transformer encoder-decoder and bipartite Hungarian matching, eliminating anchor boxes and non-maximum suppression. Deformable DETR \cite{zhu2020} addressed DETR's slow convergence by introducing sparse deformable attention, greatly improving small-object performance and training efficiency. DINOv2 \cite{oquab2023} introduced self-supervised Vision Transformer (ViT) pretraining that produces rich, transferable visual features competitive with supervised counterparts. RF-DETR \cite{robinson2025}, released by Roboflow in 2025 under the Apache 2.0 licence, combines a DINOv2 ViT-B backbone with a multi-scale feature projector and deformable DETR decoder, achieving state-of-the-art real-time detection performance. Its Apache 2.0 licence makes it fully compatible with commercial industrial deployment, and its DINOv2 backbone is particularly well-suited to fine-tuning on small specialist datasets such as the one in this project.
+
+\section{Problem Definition}
+
+Magna International's HPDC production line requires a reliable, automated EOL inspection system for surface defect detection on cast aluminium components. In HPDC, multiple defect types occur on part surfaces: \textbf{Cracks} (linear fractures, NOK if above a critical size as defined by OEM specifications), \textbf{Cold Shuts} (incomplete fusion lines, generally NOK), \textbf{Heat Checking} (fine thermal crack networks, typically OK and distinguishable by pattern), and \textbf{Porosity} (voids, not always visible on surface images). The core challenge is detecting and classifying NOK cracks reliably while tolerating OK surface patterns.
+
+Current EOL control at Magna consists of two methods, each with significant limitations. Human visual inspection, while experienced, is not 100\% reliable on complex curved geometries and is subject to fatigue and individual variability. X-Ray analysis is limited to approximately three parts per shift per machine due to its cycle time, is expensive to operate, and has a long feedback loop that prevents timely corrective action. Neither method provides 100\% automated coverage.
+
+The problem addressed in this project is formally stated as follows: given a dataset of 256 high-resolution HPDC casting images (4096$\times$3000 pixels) with COCO polygon-level annotations for Crack and Cold Shut classes, train an object detection model that localises defects via bounding boxes, measured by COCO mAP50-95. A critical sub-challenge is that crack bounding boxes occupy less than 0.1\% of the total image area --- making them extreme small objects for which full-image detection is infeasible and a patch-based strategy is required \cite{lin2014}. Furthermore, all components must use commercially permissive licences (Apache 2.0/MIT/BSD) compatible with Magna's industrial deployment requirements, excluding the YOLO family.
+
+\section{Objectives}
+
+The following objectives govern the scope and success criteria of this project:
+
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Analyse and characterise the HPDC casting defect dataset} to understand defect scale, distribution, class imbalance, and annotation quality. Establish that a patch-based pipeline is necessary from quantitative EDA findings.
+
+    \item \textbf{Classify and localise surface defects} (Crack and Cold Shut) using a deep learning object detection model with bounding box output, achieving end-to-end detection without manual post-processing.
+
+    \item \textbf{Build a patch-based data engineering pipeline} to handle extreme small-object detection, converting full 4096$\times$3000 images into 1024$\times$1024 overlapping patches with Shapely polygon-aware annotation clipping, enabling crack detection where crack area is less than 0.1\% of image area.
+
+    \item \textbf{Evaluate and compare model performance} across structured experiments using COCO mAP50-95 as the primary metric, quantifying the individual contribution of patch size, overlap, dataset balancing, and augmentation to overall detection performance.
+
+    \item \textbf{Validate a commercially deployable solution} using an open-source licence (Apache 2.0) compatible with industrial deployment at Magna International, demonstrating RF-DETR as a viable and legally compliant alternative to AGPL-3.0 licensed YOLO-family models.
+\end{enumerate}

@@ -1,11 +1,10 @@
-\chapter{IMPLEMENTATION}
+\chapter{IMPLEMENTATION AND EXPERIMENTS}
 
 \justify
 
-This chapter describes the implementation methodology and key modules of the HPDC Defect Detection System. The implementation is divided into five functional modules: dataset analysis, patch generation, dataset engineering, RF-DETR training, and evaluation and inference.
+This chapter describes the implementation methodology and key modules of the HPDC Defect Detection System, followed by the three principal experiments conducted to systematically improve detection performance. The implementation comprises five functional modules: dataset analysis, patch generation, dataset engineering, RF-DETR training, and evaluation and inference. The experimental methodology is structured to isolate and quantify the contribution of individual pipeline choices.
 
-\section {Proposed Methodology (Explain the methodology with diagrams/
-Algorithms/flowchart explanation)}
+\section{Proposed Methodology}
 \justify
 
 The core methodology is a \textbf{patch-based sliding-window training pipeline} designed for extreme small-object detection. Since crack bounding boxes occupy less than 0.1\% of the full image area, full-image detection is infeasible. Each HPDC image is divided into overlapping 1024$\times$1024 patches using a stride of 665 px (35\% overlap), with Shapely polygon-aware annotation clipping to preserve accurate ground-truth boundaries.
@@ -49,13 +48,7 @@ The EMA training strategy smooths weight updates:
 \end{equation}
 where $\alpha \approx 0.9999$. EMA weights consistently outperformed instantaneous weights across all experiments.
 
-\section {Description of Modules (Briefly describe  important modules
-Modules descriptions
-Module Name :  module( )
-Input :
-Output :
- Describe Code/ Pseudocode/ flowchart
-}
+\section{Module Descriptions}
 
 \subsection{Module 1: Dataset Analysis Module}
 
@@ -142,7 +135,7 @@ def flip_bbox(ann, W):
 
 \textbf{Output:} Best EMA checkpoint (\texttt{checkpoint\_best\_ema.pth}), per-epoch mAP metrics.
 
-\textbf{Description:} Fine-tunes RF-DETR Medium with DINOv2 ViT-B backbone using Hungarian bipartite matching loss (classification + $\mathcal{L}_1$ + GIoU). EMA weights are maintained and saved when validation EMA mAP50-95 improves. Best result achieved: EMA mAP50-95 = 0.2379 at Epoch 10.
+\textbf{Description:} Fine-tunes RF-DETR Medium with DINOv2 ViT-B backbone using Hungarian bipartite matching loss (classification + $\mathcal{L}_1$ + GIoU). EMA weights are maintained and saved when validation EMA mAP50-95 improves.
 
 \begin{lstlisting}[language=Python, caption={RF-DETR training configuration (Experiment 7)}]
 model = RFDETRMedium(pretrain_weights='rf-detr-medium.pth')
@@ -183,3 +176,139 @@ def detect(image_path, checkpoint, conf_threshold=0.3):
                 results.append(det)
     return annotate_image(image, results)
 \end{lstlisting}
+
+\section{Experimental Methodology}
+
+Seven structured training experiments were conducted to systematically identify the impact of each dataset engineering decision on detection performance. Experiments 1, 4, and 7 are reported here as they represent the baseline, the best-with-balancing-and-augmentation, and the overall best configuration respectively. All experiments used RF-DETR Medium with identical model architecture and training hyperparameters; only the data pipeline configuration was varied. The primary evaluation metric is EMA mAP50-95 on the validation split.
+
+\section{Experiment 1 --- RF-DETR Medium Baseline (768px, 20\% Overlap)}
+
+\textbf{Objective:} Establish a reference performance level for RF-DETR Medium fine-tuned on 768$\times$768 patches with no balancing or augmentation.
+
+\textbf{Dataset configuration:}
+\begin{itemize}[leftmargin=2em]
+    \item Patch size: 768$\times$768 px, stride: 614 px (20\% overlap)
+    \item No negative patch downsampling; no augmentation
+    \item Train: 2,776 patches; Val: 684 patches; Test: 447 patches (total 3,907)
+    \item Class distribution (train): 80.2\% negative patches, 12.1\% crack-only, 7.7\% mixed
+\end{itemize}
+
+\textbf{Training configuration:} Epochs: 20, batch size: 12, imgsz: 768, workers: 16, device: CUDA (RTX 6000 Ada).
+
+\begin{table}[H]
+\centering
+\caption{Experiment 1 Results}
+\begin{tabular}{lcc}
+\toprule
+\rowcolor{tableHeader}\tableheadfont Metric & \tableheadfont Regular Checkpoint & \tableheadfont EMA Checkpoint \\
+\midrule
+mAP50-95       & 0.2006 & \textbf{0.2144} \\
+\rowcolor{tableRowAlt}mAP50          & 0.3891 & 0.3952 \\
+Crack AP50-95  & 0.154  & 0.162 \\
+\rowcolor{tableRowAlt}Cold Shut AP50-95 & 0.247 & 0.267 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{findingbox}
+\textbf{Bottlenecks identified:} (1) 80.2\% of training patches are negative (background-only), creating a severe class imbalance that biases the model towards predicting no defects. (2) At 768 px with 20\% overlap (614 px stride), many crack annotations are truncated at patch boundaries, reducing effective training signal. EMA checkpoint is 7\% better than the regular checkpoint, confirming the value of EMA tracking.
+\end{findingbox}
+
+\section{Experiment 4 --- 768px Balanced and Augmented}
+
+\textbf{Objective:} Evaluate the isolated impact of dataset balancing and crack-specific augmentation at the 768 px patch scale.
+
+\textbf{Dataset configuration:}
+\begin{itemize}[leftmargin=2em]
+    \item Patch size: 768$\times$768 px, stride: 614 px (20\% overlap) --- same as Exp 1
+    \item Negative patches downsampled to 1:2 positive:negative ratio
+    \item Horizontal flip applied to all crack-containing patches (bboxes recomputed)
+    \item Train: 1,840 patches; Val: 684 patches; Test: 447 patches (total 2,971)
+\end{itemize}
+
+\textbf{Training configuration:} Identical to Experiment 1 (epochs: 20, batch size: 12, imgsz: 768).
+
+\begin{table}[H]
+\centering
+\caption{Experiment 4 Results}
+\begin{tabular}{lcc}
+\toprule
+\rowcolor{tableHeader}\tableheadfont Metric & \tableheadfont Regular Checkpoint & \tableheadfont EMA Checkpoint \\
+\midrule
+mAP50-95          & 0.2077 & \textbf{0.2157} \\
+\rowcolor{tableRowAlt}mAP50             & 0.3944 & 0.4018 \\
+Crack AP50-95     & 0.181  & 0.190 \\
+\rowcolor{tableRowAlt}Cold Shut AP50-95 & 0.234  & 0.241 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{findingbox}
+\textbf{Key finding:} Crack AP50-95 improved from 0.154 to 0.181, a gain of $+$17.4\% relative to Experiment 1. Dataset balancing significantly reduced the background-dominated bias. Augmentation reinforced crack detection across mirror-symmetric crack orientations. However, the overall mAP gain is modest ($+$0.6\%), suggesting that the 768 px patch size itself is a limiting factor: crack objects still appear at a very small scale within each patch, and boundary truncation at 20\% overlap continues to fragment some annotations.
+\end{findingbox}
+
+\section{Experiment 7 --- 1024px Patches with 35\% Overlap (Current Best)}
+
+\textbf{Objective:} Determine whether increasing patch resolution from 768 to 1024 px while simultaneously increasing overlap from 20\% to 35\% produces a measurable improvement in crack detection.
+
+\textbf{Dataset configuration:}
+\begin{itemize}[leftmargin=2em]
+    \item Patch size: 1024$\times$1024 px, stride: 665 px (35\% overlap)
+    \item No explicit balancing (positive ratio improved naturally to 31.98\% due to larger patch coverage)
+    \item Horizontal flip augmentation retained on crack patches
+    \item Train: 2,939 patches (2,743 annotations); Val: 750 patches; Test: 495 patches (total 4,184)
+\end{itemize}
+
+\textbf{Training configuration:} Epochs: 20, batch size: 12, imgsz: 1024, workers: 16, device: CUDA (RTX 6000 Ada).
+
+\begin{table}[H]
+\centering
+\caption{Experiment 7 Results (Current Best)}
+\begin{tabular}{lcc}
+\toprule
+\rowcolor{tableHeader}\tableheadfont Metric & \tableheadfont Regular Checkpoint & \tableheadfont EMA Checkpoint \\
+\midrule
+mAP50-95          & 0.2271 & \textbf{0.2379} \\
+\rowcolor{tableRowAlt}mAP50             & 0.4401 & \textbf{0.4647} \\
+Crack AP50-95     & 0.198  & 0.209 \\
+\rowcolor{tableRowAlt}Cold Shut AP50-95 & 0.256  & 0.267 \\
+Peak epoch        & ---    & 8--10 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{resultbox}[Experiment 7 --- Best Configuration]
+\begin{tabular}{ll}
+Best EMA mAP50-95:     & \textbf{0.2379} \\
+Best Regular mAP50-95: & 0.2271 \\
+Best mAP50:            & \textbf{0.4647} \\
+Peak epoch:            & 8--10 \\
+Checkpoint:            & \texttt{checkpoint\_best\_ema.pth} \\
+\end{tabular}
+\end{resultbox}
+
+\section{Comparative Summary of Experiments}
+
+\begin{table}[H]
+\centering
+\caption{Comparative Results: Experiments 1, 4, and 7}
+\begin{tabular}{lcccccc}
+\toprule
+\rowcolor{tableHeader}\tableheadfont Exp & \tableheadfont Patch & \tableheadfont Overlap & \tableheadfont Balanced & \tableheadfont Aug & \tableheadfont Reg mAP50-95 & \tableheadfont EMA mAP50-95 \\
+\midrule
+1 (Baseline)  & 768  & 20\% & No  & None   & 0.2006 & 0.2144 \\
+\rowcolor{tableRowAlt}4 (Bal+Aug)   & 768  & 20\% & Yes & H-Flip & 0.2077 & 0.2157 \\
+7 (1024+35\%) & 1024 & 35\% & No  & H-Flip & \textbf{0.2271} & \textbf{0.2379} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{conclusionbox}
+\textbf{Key findings from the experimental series:}
+\begin{enumerate}[leftmargin=2em]
+    \item \textbf{Patch size is the dominant variable:} Scaling from 768 to 1024 px with 35\% overlap produced a 10.3\% relative improvement in EMA mAP50-95 (0.2157 $\to$ 0.2379), the single largest gain across all experiments.
+    \item \textbf{Dataset engineering outperforms augmentation alone:} The majority of improvement came from pipeline design (patch size, overlap), not from augmentation or balancing strategies.
+    \item \textbf{Crack-focused augmentation is effective:} Horizontal flip applied only to crack patches gave $+$17.4\% relative Crack AP, demonstrating that class-specific augmentation is more efficient than global augmentation.
+    \item \textbf{EMA checkpoint is consistently superior:} Across all three experiments, the EMA checkpoint outperformed the regular checkpoint, confirming that EMA tracking is essential for this fine-tuning task.
+\end{enumerate}
+\end{conclusionbox}

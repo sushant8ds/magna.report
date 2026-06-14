@@ -121,14 +121,21 @@ Post-condition    & Best EMA checkpoint saved; mAP50-95 reported on validation s
 \subsection{Nonfunctional Requirements}
 
 \begin{itemize}[leftmargin=2em]
-    \item \textbf{NFR1 --- Performance:} Inference on a single 1024$\times$1024 patch shall complete in under 20~ms on a GPU (T4-class or better).
-    \item \textbf{NFR2 --- Accuracy:} The system shall achieve a minimum EMA mAP50-95 of 0.20 on the test set to be considered production-viable for Phase 1.
-    \item \textbf{NFR3 --- Licence Compliance:} All model weights, frameworks, and key libraries shall use Apache 2.0, MIT, or BSD licences compatible with commercial deployment.
-    \item \textbf{NFR4 --- Reproducibility:} All experiments shall be reproducible from documented configurations (patch size, overlap, balancing ratio, augmentation, epochs, batch size).
-    \item \textbf{NFR5 --- Scalability:} The patch generator shall handle any input resolution above 1024$\times$1024 without code modification.
-    \item \textbf{NFR6 --- Maintainability:} The pipeline shall be modular (separate patch generation, training, and inference scripts) to allow independent updates.
-    \item \textbf{NFR7 --- Security:} Model checkpoints and proprietary HPDC images shall remain under Magna International's data governance policy and not be distributed publicly.
-    \item \textbf{NFR8 --- Usability:} The inference module shall produce annotated output images with bounding boxes overlaid, requiring no additional post-processing by the quality engineer.
+    \item \textbf{NFR1 --- Reliable Accuracy} \textit{(validates FR8):} The system shall achieve EMA mAP50-95 $\geq$ 0.20 on the test set, ensuring reliable crack detection for production use. This threshold is derived from the minimum performance level accepted by Magna International for Phase 1 deployment feasibility assessment.
+
+    \item \textbf{NFR2 --- Performance / Speed} \textit{(validates FR9):} Inference on a single 1024$\times$1024 patch shall complete in under 20~ms on a GPU of T4-class or better (16 GB VRAM), enabling real-time integration into a production line inspection station.
+
+    \item \textbf{NFR3 --- Licence Compliance} \textit{(validates FR10):} All model components, weights, frameworks, and key library dependencies shall use Apache 2.0, MIT, or BSD licences compatible with Magna International's commercial deployment requirements. AGPL-3.0 licensed components (e.g., YOLO-family models) are explicitly excluded.
+
+    \item \textbf{NFR4 --- Reproducibility} \textit{(validates FR6):} All experiments shall be fully reproducible from documented configurations specifying patch size, overlap percentage, balancing ratio, augmentation strategy, number of epochs, and batch size. A configuration file or training script accompanying each experiment is required.
+
+    \item \textbf{NFR5 --- Scalability} \textit{(validates FR1, FR2):} The patch generation pipeline shall handle any input image resolution equal to or greater than 1024$\times$1024 pixels without code modification, using the configured stride calculation automatically.
+
+    \item \textbf{NFR6 --- Maintainability:} The pipeline shall be modular (separate patch generation, training, and inference scripts) to allow independent updates to each component without affecting others.
+
+    \item \textbf{NFR7 --- Security:} Model checkpoints and proprietary HPDC images shall remain under Magna International's data governance policy and shall not be distributed publicly.
+
+    \item \textbf{NFR8 --- Usability} \textit{(validates FR9):} The inference module shall produce annotated output images with bounding boxes overlaid, requiring no additional post-processing by the quality engineer.
 \end{itemize}
 
 \section{Software and Hardware requirement specifications}

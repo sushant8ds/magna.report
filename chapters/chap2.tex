@@ -1,54 +1,87 @@
-\chapter{Introduction}
+\chapter{LITERATURE SURVEY}
 
 \justify
 
-Magna International is one of the world's largest automotive component suppliers, producing structural and powertrain parts via High-Pressure Die Casting (HPDC). In HPDC, molten aluminium is injected into reusable steel dies at extreme pressures, producing complex near-net-shape components at high production rates. The two primary defect classes targeted in this project are Cracks --- linear fractures posing structural safety risks --- and Cold Shuts --- flow lines where two metal fronts fail to fuse. Automated vision-based detection is critical for reliable, consistent quality assurance at production speed.
+The automated inspection of manufacturing defects has been an active research area for several decades, progressing from hand-crafted feature engineering through deep convolutional networks to transformer-based end-to-end detection. This chapter surveys the key methodological advances relevant to HPDC surface defect detection, tracing the research lineage that led to the adoption of RF-DETR in this project, and concludes with a comparative summary of the candidate approaches evaluated.
 
-\section{Preamble (Provide Introduction of the project)}
-\justify
+\section{Traditional Feature-Based Methods}
 
-This project develops an end-to-end automated surface defect detection system for HPDC aluminium castings in partnership with Magna International. The system uses RF-DETR Medium, a Detection Transformer with a DINOv2 ViT-B backbone, fine-tuned on a patch-based dataset derived from 256 high-resolution HPDC casting images. The core innovation is a sliding-window patch pipeline that converts full 4096$\times$3000 pixel images into 1024$\times$1024 training patches, making it possible to detect cracks that occupy less than 0.1\% of the image area --- a scale at which standard full-image detectors fail entirely.
+Early automated defect detection systems in manufacturing relied entirely on manually engineered image features. Histogram of Oriented Gradients (HOG) \cite{simonyan2014} captured local gradient distributions and proved effective for detecting edges and linear structures characteristic of cracks in greyscale images. Local Binary Patterns (LBP) encoded texture by comparing each pixel with its circular neighbourhood, providing rotation-invariant texture descriptors for surface anomaly detection. Gabor filters, applied at multiple scales and orientations, extracted frequency-domain features sensitive to specific crack orientations on casting surfaces.
 
-The project is structured in two phases. Phase 1 (current) covers bounding box detection and localisation of Crack and Cold Shut defects. Phase 2 (deferred) will extend to pixel-level segmentation and physical crack length measurement in millimetres.
+These features were typically combined with classical pattern classifiers. Support Vector Machines (SVM) with radial basis function kernels were popular choices due to their robustness on small labelled datasets. Xu et al.\ \cite{xu2020} demonstrated a relief-algorithm feature selection combined with AdaBoost-SVM for internal casting crack detection, achieving detection rates competitive with manual inspection for well-controlled surface conditions. AdaBoost ensemble classifiers aggregated weak learners trained on HOG and LBP combinations to reduce false positives on textured surfaces.
 
-\section{Motivation}
-\justify
+The fundamental limitation of all these methods is the manual feature engineering bottleneck. Each new defect type, casting geometry, or surface finish requires domain experts to redesign the feature pipeline. Performance degrades rapidly when lighting conditions vary or when defects are faint, partial, or situated in regions of complex background texture --- all common conditions in industrial HPDC inspection.
 
-The motivation for this project arises from a combination of industrial necessity and technical challenge:
+\section{Convolutional Neural Network Approaches}
 
-\begin{itemize}[leftmargin=2em]
-    \item \textbf{Safety criticality:} HPDC components are used in structural automotive applications. Undetected cracks can propagate under mechanical and thermal loads, leading to part failure and safety hazards downstream.
-    \item \textbf{Production scale:} A single experienced inspector evaluating thousands of parts per shift introduces fatigue-induced inconsistency. Automated detection provides reproducible results at machine speed.
-    \item \textbf{Extreme scale challenge:} Exploratory data analysis revealed that crack bounding boxes occupy as little as 0.065\% of the total image area (roughly $90\times90$ pixels on a 12.3~MP image). This makes crack detection one of the hardest small-object detection problems in industrial computer vision.
-    \item \textbf{Commercial licensing:} YOLO-family models (versions 8 and beyond) use the AGPL-3.0 licence, which requires derivative commercial products to also be open-sourced --- incompatible with industrial deployment. RF-DETR (Apache 2.0) is the commercially viable alternative.
-\end{itemize}
+The introduction of deep convolutional neural networks (CNNs) transformed industrial inspection by replacing hand-crafted features with hierarchically learned representations. LeCun et al.\ \cite{lecun1998} demonstrated that convolutional architectures could learn spatial hierarchies from pixel data end-to-end. The seminal VGGNet \cite{simonyan2014} showed that very deep networks with $3\times3$ convolutions could achieve state-of-the-art classification accuracy on ImageNet, and VGG16/VGG19 feature extractors became standard backbones for transfer learning in downstream detection tasks.
 
-\section{Literature Study}
-\justify
+He et al.\ \cite{he2016} introduced Residual Networks (ResNet), addressing the vanishing gradient problem that limited the depth of plain convolutional networks through identity shortcut connections. ResNet50 and ResNet101 became the dominant backbone architectures for two-stage object detection pipelines such as Faster R-CNN, which used Region Proposal Networks and RoI pooling to achieve accurate but computationally expensive defect localisation. For HPDC inspection tasks, ResNet-based detectors were applied to weld seam inspection, porosity detection, and surface scratch classification with accuracy improvements of 15--30\% over SVM baselines \cite{he2016}.
 
-Automated defect detection in manufacturing has advanced substantially with deep convolutional neural networks. Traditional approaches relied on hand-crafted features --- HOG descriptors, LBP histograms, Gabor filters --- combined with classical classifiers such as SVM or AdaBoost \cite{xu2020}. Deep learning methods have supplanted these by learning hierarchical representations directly from labelled data.
+Liu et al.\ \cite{liu2016} proposed Single Shot MultiBox Detector (SSD), which predicted multi-scale bounding boxes directly from convolutional feature maps at multiple resolutions, enabling real-time single-stage detection without a separate proposal stage. SSD's multi-scale architecture was particularly relevant for detecting defects at varied scales, though its performance on very small objects remained limited without careful anchor tuning.
 
-The Detection Transformer (DETR) paradigm \cite{carion2020} reformulated object detection as a direct set prediction problem, eliminating hand-designed anchor boxes and non-maximum suppression. Deformable DETR \cite{zhu2020} improved convergence and small-object performance through sparse deformable attention. \textbf{RF-DETR} \cite{robinson2025} builds on this lineage with a DINOv2 ViT-B backbone \cite{oquab2023}, multi-scale feature projector, and deformable decoder, making it ideal for fine-tuning on small industrial datasets with challenging object scales. Xu et al.\ \cite{xu2020} demonstrated the viability of machine learning for internal casting crack detection, motivating this surface-defect extension.
+\section{The YOLO Family and Licence Considerations}
 
-\section{Problem Definition}
-\justify
+The You Only Look Once (YOLO) \cite{redmon2016} framework proposed to reformulate detection as a single regression problem on a grid of cells, achieving unprecedented inference speed by eliminating the two-stage detection pipeline. YOLOv4 \cite{bochkovskiy2020} introduced CSP (Cross-Stage Partial) blocks, PANet feature aggregation, and Mish activation, establishing a strong real-time detection baseline. YOLOv5 and subsequent versions further refined the architecture and training recipe, achieving good mAP-to-latency trade-offs on standard benchmarks.
 
-Given 256 high-resolution HPDC casting images (4096$\times$3000 pixels) annotated with COCO polygon-level bounding boxes for two defect classes (Crack and Cold Shut), the problem is defined as:
+Jocher et al.\ \cite{jocher2022} released YOLOv8 via Ultralytics, introducing anchor-free detection heads, a new CSPDarknet backbone, and a streamlined Python API. YOLOv8 and the subsequently released YOLO11 were evaluated early in this project owing to their ease of use and strong published performance on small custom datasets. However, both are distributed under the \textbf{AGPL-3.0 (Affero GNU Public Licence v3)} \cite{jocher2022}. AGPL-3.0 is a strong copyleft licence that requires any organisation that deploys a network service or product incorporating AGPL-3.0 code to release the complete corresponding source code of their application. For Magna International, whose production line control software and proprietary imaging pipeline constitute trade secrets, this licence condition is commercially unacceptable. The decision was therefore made to find an alternative model family with a permissive open-source licence.
 
-\begin{itemize}[leftmargin=2em]
-    \item \textbf{Primary:} Train an object detection model that accurately detects and localises Crack and Cold Shut defects, measured by COCO mAP50-95 on a held-out test set.
-    \item \textbf{Key constraint:} Crack bounding boxes occupy $<0.1\%$ of image area, making full-image detection infeasible. A patch-based sliding-window strategy is required.
-    \item \textbf{Licence constraint:} The model must use a licence compatible with commercial deployment (Apache 2.0 preferred). YOLO-family models are excluded.
-    \item \textbf{Phase 1 scope:} Bounding box detection only. Segmentation and crack length measurement are deferred to Phase 2.
-\end{itemize}
+\section{Detection Transformers: DETR}
 
-\section{Objectives of the project}
-\justify
+Carion et al.\ \cite{carion2020} proposed DETR (Detection Transformer), which fundamentally reconceived object detection as a direct set prediction problem using an encoder-decoder transformer architecture. An image backbone (ResNet-50) produces a 2D feature map that is flattened and fed to a transformer encoder with positional embeddings. A fixed set of $N$ learnable object queries is processed by the decoder through cross-attention over encoder features. The final query embeddings are independently passed to a classification head and a bounding box regression head. Training uses the Hungarian algorithm to find an optimal bipartite matching between predictions and ground-truth, computing a combined classification and GIoU loss.
 
-\begin{enumerate}[leftmargin=2em]
-    \item Detect and classify surface defects (Crack and Cold Shut) in HPDC casting images using a commercially deployable deep learning model.
-    \item Produce accurate bounding box localisations suitable for downstream quality control actions.
-    \item Establish a reproducible patch-based training pipeline for extreme small-object detection.
-    \item Quantify the impact of dataset engineering choices (patch size, overlap, balancing, augmentation) on detection performance through structured experiments.
-    \item Validate RF-DETR as an Apache 2.0 licensed alternative to YOLO, achieving EMA mAP50-95 $\geq$ 0.20 on the test set.
-\end{enumerate}
+The key advantages of DETR are the complete elimination of anchor boxes, non-maximum suppression, and the hand-tuned heuristics associated with both, resulting in a clean, end-to-end differentiable detection pipeline. For industrial inspection, the absence of NMS is particularly valuable because NMS thresholds are difficult to tune when multiple overlapping defect annotations are present at the same location. The primary limitation of the original DETR was its extremely slow convergence (500 epochs to match Faster R-CNN) due to the global attention mechanism's difficulty in discovering sparse object localisation from scratch.
+
+\section{Deformable DETR and Sparse Attention}
+
+Zhu et al.\ \cite{zhu2020} addressed DETR's convergence and small-object weaknesses with Deformable DETR. The key innovation is replacing global self-attention (quadratic in image resolution) with deformable attention: each query attends only to a small set of $K$ dynamically predicted sampling points across multiple feature scales, rather than all spatial locations. This is inspired by deformable convolutional networks and reduces computational complexity from $O(N^2)$ to $O(KN)$ per layer.
+
+Deformable DETR further introduced multi-scale features by feeding feature maps from multiple backbone stages into the decoder simultaneously, enabling attention to objects at different sizes within a single unified framework. On the COCO benchmark, Deformable DETR converged 10$\times$ faster than DETR (50 epochs versus 500) while achieving higher AP, particularly for small objects. For the HPDC crack detection problem, where cracks span a wide range of lengths and the extreme small-object challenge is central, deformable attention provides a theoretically motivated architectural advantage over both DETR and YOLO-family models.
+
+\section{Self-Supervised Vision Transformers: DINOv2}
+
+The quality of the backbone features is paramount for fine-tuning on small specialist datasets such as the 256-image HPDC collection used in this project. Oquab et al.\ \cite{oquab2023} introduced DINOv2, a self-supervised pretraining methodology for Vision Transformers (ViT) that combines masked image modelling with a knowledge distillation approach. DINOv2 models pretrained on a curated dataset of 142 million images produce dense visual features that exhibit strong spatial grounding, semantic consistency, and excellent transferability across downstream tasks without task-specific fine-tuning.
+
+Crucially, DINOv2 features carry rich local-region semantics rather than only global class information, making them highly suitable as backbones for detection tasks that require precise localisation of small defects. The DINOv2 ViT-B model used as the backbone in RF-DETR brings large-scale pretraining priors to the small HPDC fine-tuning dataset, reducing the risk of overfitting that would affect a randomly initialised ViT.
+
+\section{RF-DETR: The Selected Architecture}
+
+Robinson et al.\ \cite{robinson2025} introduced RF-DETR (Roboflow Detection Transformer) in early 2025 as a real-time detection transformer designed for practical deployment on specialist datasets. RF-DETR uses a DINOv2 ViT-B backbone, a multi-scale convolutional projector neck, and a multi-scale deformable DETR decoder. On the COCO val2017 benchmark, RF-DETR Medium achieves 53.3 mAP at over 60 FPS, outperforming YOLOv9 at comparable latency while maintaining a fully transformer-based pipeline without NMS.
+
+RF-DETR is released under the \textbf{Apache 2.0 licence} \cite{roboflow_rfdetr}, which permits unrestricted use, modification, and integration into commercial products without copyleft obligations. This resolves the licence incompatibility that disqualified YOLO-family models for deployment at Magna International. The Roboflow RF-DETR training framework \cite{roboflow_rfdetr} provides a clean Python API compatible with COCO-format datasets, EMA checkpoint management, and configurable hyperparameters, making it directly suitable for the patch-based training pipeline developed in this project.
+
+\section{Patch-Based Approaches for Small-Object Detection}
+
+Several works have demonstrated that subdividing high-resolution images into overlapping patches before training is the most effective strategy for small-object detection when a substantial resolution gap exists between the full image and the target objects \cite{lin2014}. The key parameters are patch size (determining the effective resolution presented to the model), overlap ratio (controlling boundary truncation of objects straddling patch borders), and annotation clipping methodology.
+
+For annotation clipping, Shapely \cite{shapely} provides polygon-level geometry operations that accurately compute the intersection of COCO polygon annotations with patch boundaries and recompute tight bounding boxes from clipped polygons. This is preferable to simple bounding box clipping, which can produce inaccurate ground truth when the polygon crosses a patch edge at an angle. In this project, a 35\% overlap (stride of 665 px for 1024 px patches) was found to be the optimal trade-off between boundary truncation reduction and patch count growth.
+
+\section{COCO Evaluation Metrics}
+
+The Microsoft COCO dataset \cite{lin2014} introduced a comprehensive detection evaluation protocol based on Intersection over Union (IoU) averaged across 10 IoU thresholds from 0.50 to 0.95 in steps of 0.05. The primary metric, mAP50-95, rewards high-precision localisation and penalises models that produce loosely fitted bounding boxes. mAP50, averaged only at the IoU=0.50 threshold, provides a more lenient measure suitable for assessing recall on difficult small objects. In this project, EMA mAP50-95 is the primary optimisation target, as it reflects the stricter localisation quality required for production-grade defect detection.
+
+\section{Summary and Method Comparison}
+
+The following table compares the key candidate approaches evaluated against the requirements of this project.
+
+\begin{table}[H]
+\centering
+\caption{Comparison of Candidate Detection Methods}
+\begin{tabular}{p{2.8cm} p{2cm} p{1.6cm} p{2.5cm} p{2.8cm} p{2cm}}
+\toprule
+\tableheadfont\tableheadcolor Method & \tableheadfont Licence & \tableheadfont NMS Needed & \tableheadfont Small-Object Performance & \tableheadfont Suitable for Deployment & \tableheadfont Selected \\
+\midrule
+HOG+SVM \cite{xu2020}            & N/A         & No   & Poor (manual features)   & Requires re-engineering  & No \\
+\rowcolor{tableRowAlt}
+YOLOv8 \cite{jocher2022}         & AGPL-3.0    & Yes  & Moderate (anchor-free)   & \textcolor{magnaRed}{Licence incompatible} & No \\
+YOLO11 \cite{jocher2022}         & AGPL-3.0    & Yes  & Moderate                 & \textcolor{magnaRed}{Licence incompatible} & No \\
+\rowcolor{tableRowAlt}
+DETR \cite{carion2020}           & Apache 2.0  & No   & Moderate (slow conv.)    & Yes                      & No \\
+Deformable DETR \cite{zhu2020}   & Apache 2.0  & No   & Good (sparse attn.)      & Yes                      & No \\
+\rowcolor{tableRowAlt}
+RF-DETR \cite{robinson2025}      & Apache 2.0  & No   & Good (DINOv2 + deform.)  & \textcolor{successGreen}{Yes (commercial)} & \textbf{Yes} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The literature review establishes that RF-DETR is the only method that simultaneously satisfies all three constraints of this project: (1) strong small-object detection capability via deformable attention and DINOv2 pretraining, (2) end-to-end detection without NMS simplifying deployment, and (3) an Apache 2.0 licence compatible with Magna International's commercial production environment. The patch-based sliding-window strategy is validated by prior work as the correct engineering approach to bridge the gap between full-image resolution and the sub-0.1\% crack scale.
