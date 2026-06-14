@@ -67,19 +67,20 @@ The following table compares the key candidate approaches evaluated against the 
 \begin{table}[H]
 \centering
 \caption{Comparison of Candidate Detection Methods}
-\begin{tabular}{p{2.8cm} p{2cm} p{1.6cm} p{2.5cm} p{2.8cm} p{2cm}}
+\begin{tabular}{p{2.8cm} p{2cm} p{1.4cm} p{2.5cm} p{2.8cm} p{1.4cm}}
 \toprule
-\tableheadfont\tableheadcolor Method & \tableheadfont Licence & \tableheadfont NMS Needed & \tableheadfont Small-Object Performance & \tableheadfont Suitable for Deployment & \tableheadfont Selected \\
+\rowcolor{tableHeader}
+{\color{white}\bfseries Method} & {\color{white}\bfseries Licence} & {\color{white}\bfseries NMS} & {\color{white}\bfseries Small-Object} & {\color{white}\bfseries Deployment} & {\color{white}\bfseries Used} \\
 \midrule
-HOG+SVM \cite{xu2020}            & N/A         & No   & Poor (manual features)   & Requires re-engineering  & No \\
+HOG+SVM \cite{xu2020}          & N/A        & No  & Poor            & Re-engineering needed & No \\
 \rowcolor{tableRowAlt}
-YOLOv8 \cite{jocher2022}         & AGPL-3.0    & Yes  & Moderate (anchor-free)   & \textcolor{magnaRed}{Licence incompatible} & No \\
-YOLO11 \cite{jocher2022}         & AGPL-3.0    & Yes  & Moderate                 & \textcolor{magnaRed}{Licence incompatible} & No \\
+YOLOv8 \cite{jocher2022}       & AGPL-3.0   & Yes & Moderate        & \textcolor{magnaRed}{Licence incompatible} & No \\
+YOLO11 \cite{jocher2022}       & AGPL-3.0   & Yes & Moderate        & \textcolor{magnaRed}{Licence incompatible} & No \\
 \rowcolor{tableRowAlt}
-DETR \cite{carion2020}           & Apache 2.0  & No   & Moderate (slow conv.)    & Yes                      & No \\
-Deformable DETR \cite{zhu2020}   & Apache 2.0  & No   & Good (sparse attn.)      & Yes                      & No \\
+DETR \cite{carion2020}         & Apache 2.0 & No  & Moderate        & Yes & No \\
+Deformable DETR \cite{zhu2020} & Apache 2.0 & No  & Good            & Yes & No \\
 \rowcolor{tableRowAlt}
-RF-DETR \cite{robinson2025}      & Apache 2.0  & No   & Good (DINOv2 + deform.)  & \textcolor{successGreen}{Yes (commercial)} & \textbf{Yes} \\
+RF-DETR \cite{robinson2025}    & Apache 2.0 & No  & Good (DINOv2)   & \textcolor{successGreen}{Yes} & \textbf{Yes} \\
 \bottomrule
 \end{tabular}
 \end{table}

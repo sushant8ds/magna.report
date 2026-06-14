@@ -52,8 +52,6 @@ where $\alpha \approx 0.9999$. EMA weights consistently outperformed instantaneo
 
 \subsection{Module 1: Dataset Analysis Module}
 
-\textbf{Module Name:} \texttt{dataset\_analysis()}
-
 \textbf{Input:} Raw COCO JSON annotation file for the full 256-image dataset.
 
 \textbf{Output:} Statistical summary of crack/cold shut sizes, class distribution, annotation quality report.
@@ -83,19 +81,22 @@ def dataset_analysis(coco_json_path):
 \textbf{Description:} Enumerates sliding-window positions with stride 665 px. For each patch, clips all polygon annotations using Shapely geometry intersection and recomputes bounding boxes. Discards annotations where intersection area falls below a minimum threshold.
 
 \begin{lstlisting}[language=Python, caption={Patch generation pseudocode}]
-def generate_patches(image, annotations, patch_size=1024, overlap=0.35):
+def generate_patches(image, annotations,
+                     patch_size=1024, overlap=0.35):
     stride = int(patch_size * (1 - overlap))  # 665 px
     for y in range(0, H - patch_size + 1, stride):
         for x in range(0, W - patch_size + 1, stride):
-            patch = image.crop(x, y, patch_size, patch_size)
-            patch_box = Polygon([(x,y),(x+S,y),(x+S,y+S),(x,y+S)])
+            patch    = image.crop(x, y, patch_size, patch_size)
+            patch_box = Polygon([(x,y),(x+S,y),
+                                  (x+S,y+S),(x,y+S)])
             clipped = []
             for ann in annotations:
                 poly  = Polygon(ann['segmentation'])
                 inter = poly.intersection(patch_box)
                 if inter.area > MIN_THRESHOLD:
-                    bbox = inter.bounds  # recomputed bbox
-                    clipped.append(make_coco_ann(bbox, ann['category_id']))
+                    bbox = inter.bounds
+                    clipped.append(
+                        make_coco_ann(bbox, ann['category_id']))
             save_patch(patch, clipped)
 \end{lstlisting}
 
@@ -147,7 +148,7 @@ model.train(
     workers     = 16,
     device      = 'cuda'
 )
-# Results: EMA mAP50-95 = 0.2379, mAP50 = 0.4647 (Epoch 10)
+# EMA mAP50-95 = 0.2379, mAP50 = 0.4647 at Epoch 10
 \end{lstlisting}
 
 \subsection{Module 5: Evaluation and Inference Module}

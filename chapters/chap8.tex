@@ -41,9 +41,8 @@ Checkpoint:            & \texttt{checkpoint\_best\_ema.pth} \\
     width=12cm, height=7cm,
     xlabel={Epoch}, ylabel={EMA mAP50-95},
     xmin=1, xmax=20, ymin=0.15, ymax=0.26,
-    grid=both,
-    grid style={line width=0.3pt, draw=gray!30},
-    major grid style={line width=0.5pt, draw=gray!50},
+    grid=major,
+    grid style={line width=0.4pt, draw=gray!40},
     legend pos=south east,
     tick label style={font=\small},
     label style={font=\small},
@@ -58,15 +57,13 @@ Checkpoint:            & \texttt{checkpoint\_best\_ema.pth} \\
         (16,0.225)(17,0.224)(18,0.222)(19,0.221)(20,0.220)
     };
 \addlegendentry{EMA mAP50-95}
-\draw[dashed, magnaRed, thick] (axis cs:8, 0.15) -- (axis cs:8, 0.2379);
-\draw[dashed, magnaRed, thick] (axis cs:10,0.15) -- (axis cs:10,0.2379);
-\node[font=\tiny, color=magnaRed, fill=white] at (axis cs:9, 0.157){Peak\\Epoch 8--10};
-\draw[-Stealth, magnaGray] (axis cs:14, 0.222) -- (axis cs:16, 0.218);
-\node[font=\tiny, color=magnaGray, text width=2cm, align=center]
-    at (axis cs:14, 0.228) {Mild overfitting};
+\addplot[dashed, magnaRed, thick, forget plot] coordinates {(8,0.15)(8,0.2379)};
+\addplot[dashed, magnaRed, thick, forget plot] coordinates {(10,0.15)(10,0.2379)};
+\node[font=\tiny, color=magnaRed, fill=white] at (axis cs:9, 0.158){Peak\\Ep.\ 8--10};
+\node[font=\tiny, color=magnaGray] at (axis cs:15, 0.221){overfitting};
 \end{axis}
 \end{tikzpicture}
-\caption{Training curve for Experiment 7. Performance peaks at Epoch 8--10; mild overfitting observed after Epoch 10.}
+\caption{Training curve for Experiment 7. Validation mAP peaks at Epoch 8--10; mild overfitting observed thereafter.}
 \end{figure}
 
 \begin{figure}[H]
@@ -79,11 +76,14 @@ Checkpoint:            & \texttt{checkpoint\_best\_ema.pth} \\
     x tick label style={font=\small, text width=3.5cm, align=center},
     ylabel={EMA mAP50-95},
     ymin=0.19, ymax=0.26,
-    nodes near coords, nodes near coords style={font=\small\bfseries},
-    bar width=1.8cm, grid=y,
+    nodes near coords,
+    nodes near coords style={font=\small\bfseries},
+    bar width=1.8cm,
+    ymajorgrids=true,
     grid style={line width=0.3pt, draw=gray!30},
     title={EMA mAP50-95 Across All Training Experiments},
-    title style={font=\small\bfseries}, label style={font=\small}
+    title style={font=\small\bfseries},
+    label style={font=\small}
 ]
 \addplot[fill=magnaGray!60, draw=magnaDark]
     coordinates {
